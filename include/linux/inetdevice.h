@@ -43,8 +43,18 @@ enum
 
 #define IPV4_DEVCONF_MAX (__IPV4_DEVCONF_MAX - 1)
 
+
+struct devinet_sysctl {
+	/* dev_name holds a copy of dev_name, because '.procname' is
+	 * regarded as const by sysctl and we wouldn't want anyone to
+	 * change it under our feet (see SIOCSIFNAME). */
+	char *dev_name;
+	struct ctl_table_header *sysctl_header;
+};
+
+
 struct ipv4_devconf {
-	void	*sysctl;
+	struct devinet_sysctl devinet_sysctl;
 	int	data[IPV4_DEVCONF_MAX];
 	DECLARE_BITMAP(state, IPV4_DEVCONF_MAX);
 };

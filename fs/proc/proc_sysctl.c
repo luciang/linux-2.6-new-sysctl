@@ -128,6 +128,11 @@ out:
 	return err;
 }
 
+
+typedef int proc_handler_extended(struct ctl_table *ctl, int write,
+				  void __user *buffer, size_t *lenp, loff_t *ppos,
+				  struct file *filp);
+
 static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 		size_t count, loff_t *ppos, int write)
 {
@@ -136,6 +141,7 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
 	ssize_t error;
 	size_t res;
+	proc_handler_extended *phx = (proc_handler_extended *) table->proc_handler;
 
 	if (IS_ERR(head))
 		return PTR_ERR(head);
@@ -155,7 +161,15 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 
 	/* careful: calling conventions are nasty here */
 	res = count;
-	error = table->proc_handler(table, write, buf, &res, ppos);
+	/* Most handlers only use the first 5 arguments (without @filp).
+	 * Changing all is too much of work, as, at the time of writting only
+	 * the devinet.c proc_handlers know about and use the @filp.
+	 *
+	 * This is just a HACK for now, I did this this way to not
+	 * waste time changing all the handlers, in the final version
+	 * I'll change all the handlers if there's not other solution.
+	 */
+	error = phx(table, write, buf, &res, ppos, filp);
 	if (!error)
 		error = res;
 out:
