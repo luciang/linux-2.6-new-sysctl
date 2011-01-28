@@ -129,6 +129,17 @@ struct ipv6hdr {
 };
 
 #ifdef __KERNEL__
+
+#ifdef CONFIG_SYSCTL
+struct addrconf_sysctl {
+	/* dev_name holds a copy of dev_name, because '.procname' is
+	 * regarded as const by sysctl and we wouldn't want anyone to
+	 * change it under our feet (see SIOCSIFNAME). */
+	char *dev_name;
+	struct ctl_table_header *sysctl_header;
+};
+#endif
+
 /*
  * This structure contains configuration options per IPv6 link.
  */
@@ -172,7 +183,9 @@ struct ipv6_devconf {
 	__s32		disable_ipv6;
 	__s32		accept_dad;
 	__s32		force_tllao;
-	void		*sysctl;
+#ifdef CONFIG_SYSCTL
+	struct addrconf_sysctl addrconf_sysctl;
+#endif
 };
 
 struct ipv6_params {
