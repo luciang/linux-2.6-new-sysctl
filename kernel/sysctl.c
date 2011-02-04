@@ -1695,18 +1695,8 @@ int sysctl_perm(struct ctl_table_root *root, struct ctl_table *table, int op)
 	return test_perm(mode, op);
 }
 
-static void sysctl_set_parent(struct ctl_table *parent, struct ctl_table *table)
-{
-	for (; table->procname; table++) {
-		table->parent = parent;
-		if (table->child)
-			sysctl_set_parent(table, table->child);
-	}
-}
-
 static __init int sysctl_init(void)
 {
-	sysctl_set_parent(NULL, root_table);
 #ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 	sysctl_check_table(current->nsproxy, root_table);
 #endif
@@ -1864,7 +1854,6 @@ struct ctl_table_header *__register_sysctl_paths(
 	header->used = 0;
 	header->unregistering = NULL;
 	header->root = root;
-	sysctl_set_parent(NULL, header->ctl_table);
 	header->count = 1;
 #ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 	if (sysctl_check_table(namespaces, header->ctl_table)) {
