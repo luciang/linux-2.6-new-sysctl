@@ -1671,15 +1671,6 @@ int sysctl_perm(struct ctl_table_root *root, struct ctl_table *table, int op)
 	return test_perm(mode, op);
 }
 
-static void sysctl_set_parent(struct ctl_table *parent, struct ctl_table *table)
-{
-	for (; table->procname; table++) {
-		table->parent = parent;
-		if (table->child)
-			sysctl_set_parent(table, table->child);
-	}
-}
-
 __init int sysctl_init(void)
 {
 	struct ctl_table_header *kern_header, *vm_header, *fs_header,
@@ -1687,8 +1678,6 @@ __init int sysctl_init(void)
 #if defined(CONFIG_BINFMT_MISC) || defined(CONFIG_BINFMT_MISC_MODULE)
 	struct ctl_table_header *binfmt_misc_header;
 #endif
-
-	sysctl_set_parent(NULL, root_table);
 
 	kern_header = register_sysctl_paths(kern_path, kern_table);
 	if (kern_header == NULL)
@@ -1889,7 +1878,6 @@ struct ctl_table_header *__register_sysctl_paths(
 	header->used = 0;
 	header->unregistering = NULL;
 	header->root = root;
-	sysctl_set_parent(NULL, header->ctl_table);
 	header->count = 1;
 #ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 	if (sysctl_check_table(namespaces, header->ctl_table)) {
