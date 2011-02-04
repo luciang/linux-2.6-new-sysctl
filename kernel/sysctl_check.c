@@ -119,8 +119,6 @@ static int __sysctl_check_table(struct nsproxy *namespaces,
 				SET_FAIL("Directory with proc_handler");
 			if (table->extra1)
 				SET_FAIL("Directory with extra1");
-			if (table->extra2)
-				SET_FAIL("Directory with extra2");
 		} else {
 			if ((table->proc_handler == proc_dostring) ||
 			    (table->proc_handler == proc_dointvec) ||

@@ -1759,6 +1759,8 @@ static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
  * @namespaces: Data to compute which lists of sysctl entries are visible
  * @path: The path to the directory the sysctl table is in.
  * @table: the top-level table structure
+ * @pathdata: user provided pointer to data that will be stored in ->extra2
+ *            for every ctl_table node allocated for entries in @path
  *
  * Register a sysctl table hierarchy. @table should be a filled in ctl_table
  * array. A completely 0 filled entry terminates the table.
@@ -1809,7 +1811,7 @@ static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
 struct ctl_table_header *__register_sysctl_paths(
 	struct ctl_table_root *root,
 	struct nsproxy *namespaces,
-	const struct ctl_path *path, struct ctl_table *table)
+	const struct ctl_path *path, struct ctl_table *table, void *pathdata)
 {
 	struct ctl_table_header *header;
 	struct ctl_table *new, **prevp;
@@ -1841,6 +1843,7 @@ struct ctl_table_header *__register_sysctl_paths(
 		/* Copy the procname */
 		new->procname = path->procname;
 		new->mode     = 0555;
+		new->extra2   = pathdata;
 
 		*prevp = new;
 		prevp = &new->child;
@@ -1895,7 +1898,7 @@ struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table)
 {
 	return __register_sysctl_paths(&sysctl_table_root, current->nsproxy,
-					path, table);
+				       path, table, NULL);
 }
 
 /**

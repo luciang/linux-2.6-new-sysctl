@@ -103,22 +103,30 @@ out:
 }
 subsys_initcall(sysctl_init);
 
-struct ctl_table_header *register_net_sysctl_table(struct net *net,
-	const struct ctl_path *path, struct ctl_table *table)
+struct ctl_table_header *register_net_sysctl_table_pathdata(struct net *net,
+	const struct ctl_path *path, struct ctl_table *table, void *pathdata)
 {
 	struct nsproxy namespaces;
 	namespaces = *current->nsproxy;
 	namespaces.net_ns = net;
-	return __register_sysctl_paths(&net_sysctl_root,
-					&namespaces, path, table);
+	return __register_sysctl_paths(&net_sysctl_root, &namespaces,
+				       path, table, pathdata);
+}
+EXPORT_SYMBOL_GPL(register_net_sysctl_table_pathdata);
+
+struct ctl_table_header *register_net_sysctl_table(struct net *net,
+	const struct ctl_path *path, struct ctl_table *table)
+{
+	return register_net_sysctl_table_pathdata(net, path, table, NULL);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table);
+
 
 struct ctl_table_header *register_net_sysctl_rotable(const
 		struct ctl_path *path, struct ctl_table *table)
 {
-	return __register_sysctl_paths(&net_sysctl_ro_root,
-			&init_nsproxy, path, table);
+	return __register_sysctl_paths(&net_sysctl_ro_root, &init_nsproxy,
+				       path, table, NULL);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_rotable);
 
