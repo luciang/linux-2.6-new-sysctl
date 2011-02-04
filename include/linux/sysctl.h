@@ -1042,7 +1042,6 @@ struct ctl_table
 	int maxlen;
 	mode_t mode;
 	struct ctl_table *child;
-	struct ctl_table *parent;	/* Automatically set */
 	proc_handler *proc_handler;	/* Callback for text formatting */
 	struct ctl_table_poll *poll;
 	void *extra1;
