@@ -26,20 +26,20 @@ static struct inode *proc_sys_make_inode(struct super_block *sb,
 
 	inode->i_ino = get_next_ino();
 
-	sysctl_head_get(head);
+	sysctl_proc_inode_get(head);
 	ei = PROC_I(inode);
 	ei->sysctl = head;
 	ei->sysctl_entry = table;
 
 	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
-	inode->i_mode = table->mode;
-	if (!table->child) {
-		inode->i_mode |= S_IFREG;
+
+	if (table) {
+		inode->i_mode = S_IFREG | table->mode;
 		inode->i_op = &proc_sys_inode_operations;
 		inode->i_fop = &proc_sys_file_operations;
 	} else {
-		inode->i_mode |= S_IFDIR;
 		inode->i_nlink = 0;
+		inode->i_mode = S_IFDIR | S_IRUGO | S_IWUSR;
 		inode->i_op = &proc_sys_dir_operations;
 		inode->i_fop = &proc_sys_dir_file_operations;
 	}
@@ -51,70 +51,76 @@ static struct ctl_table *find_in_table(struct ctl_table *p, struct qstr *name)
 {
 	int len;
 	for ( ; p->procname; p++) {
-
-		if (!p->procname)
-			continue;
-
 		len = strlen(p->procname);
 		if (len != name->len)
 			continue;
 
-		if (memcmp(p->procname, name->name, len) != 0)
-			continue;
-
-		/* I have a match */
-		return p;
+		if (memcmp(p->procname, name->name, len) == 0)
+			return p;
 	}
 	return NULL;
-}
-
-static struct ctl_table_header *grab_header(struct inode *inode)
-{
-	if (PROC_I(inode)->sysctl)
-		return sysctl_head_grab(PROC_I(inode)->sysctl);
-	else
-		return sysctl_head_next(NULL);
 }
 
 static struct dentry *proc_sys_lookup(struct inode *dir, struct dentry *dentry,
 					struct nameidata *nd)
 {
-	struct ctl_table_header *head = grab_header(dir);
-	struct ctl_table *table = PROC_I(dir)->sysctl_entry;
-	struct ctl_table_header *h = NULL;
+	struct ctl_table_header *head = sysctl_fs_get(PROC_I(dir)->sysctl);
 	struct qstr *name = &dentry->d_name;
-	struct ctl_table *p;
+	struct ctl_table_header *h = NULL, *found_head = NULL;
+	struct ctl_table *table = NULL;
 	struct inode *inode;
 	struct dentry *err = ERR_PTR(-ENOENT);
+
 
 	if (IS_ERR(head))
 		return ERR_CAST(head);
 
-	if (table && !table->child) {
-		WARN_ON(1);
-		goto out;
+retry:
+	sysctl_read_lock_head(head);
+
+	/* first check whether a subdirectory has the searched-for name */
+	list_for_each_entry(h, &head->ctl_subdirs, ctl_entry) {
+		if (IS_ERR(sysctl_fs_get(h)))
+			continue;
+
+		if (strcmp(name->name, h->dirname) == 0) {
+			found_head = h;
+			goto search_finished;
+		}
+		sysctl_fs_put(h);
 	}
 
-	table = table ? table->child : head->ctl_table;
+	/* no subdir with that name, look for the file in the ctl_tables */
+	list_for_each_entry(h, &head->ctl_tables, ctl_entry) {
+		if (IS_ERR(sysctl_fs_get(h)))
+			continue;
 
-	p = find_in_table(table, name);
-	if (!p) {
-		for (h = sysctl_head_next(NULL); h; h = sysctl_head_next(h)) {
-			if (h->attached_to != table)
-				continue;
-			p = find_in_table(h->attached_by, name);
-			if (p)
-				break;
+		table = find_in_table(h->ctl_table_arg, name);
+		if (table) {
+			found_head = h;
+			goto search_finished;
+		}
+		sysctl_fs_put(h);
+	}
+
+search_finished:
+	sysctl_read_unlock_head(head);
+
+	if (!found_head) {
+		struct ctl_table_header *netns_corresp;
+		netns_corresp = sysctl_fs_get_netns_corresp(head);
+		if (netns_corresp) {
+			sysctl_fs_put(head);
+			head = netns_corresp;
+			goto retry;
 		}
 	}
-
-	if (!p)
+	if (!found_head)
 		goto out;
 
 	err = ERR_PTR(-ENOMEM);
-	inode = proc_sys_make_inode(dir->i_sb, h ? h : head, p);
-	if (h)
-		sysctl_head_finish(h);
+	inode = proc_sys_make_inode(dir->i_sb, found_head, table);
+	sysctl_fs_put(found_head);
 
 	if (!inode)
 		goto out;
@@ -124,7 +130,7 @@ static struct dentry *proc_sys_lookup(struct inode *dir, struct dentry *dentry,
 	d_add(dentry, inode);
 
 out:
-	sysctl_head_finish(head);
+	sysctl_fs_put(head);
 	return err;
 }
 
@@ -132,7 +138,7 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 		size_t count, loff_t *ppos, int write)
 {
 	struct inode *inode = filp->f_path.dentry->d_inode;
-	struct ctl_table_header *head = grab_header(inode);
+	struct ctl_table_header *head = sysctl_fs_get(PROC_I(inode)->sysctl);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
 	ssize_t error;
 	size_t res;
@@ -145,7 +151,7 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 	 * and won't be until we finish.
 	 */
 	error = -EPERM;
-	if (sysctl_perm(head->root, table, write ? MAY_WRITE : MAY_READ))
+	if (sysctl_perm(head->ctl_group, table, write ? MAY_WRITE : MAY_READ))
 		goto out;
 
 	/* if that can happen at all, it should be -EINVAL, not -EISDIR */
@@ -159,7 +165,7 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 	if (!error)
 		error = res;
 out:
-	sysctl_head_finish(head);
+	sysctl_fs_put(head);
 
 	return error;
 }
@@ -188,8 +194,8 @@ static int proc_sys_fill_cache(struct file *filp, void *dirent,
 	ino_t ino = 0;
 	unsigned type = DT_UNKNOWN;
 
-	qname.name = table->procname;
-	qname.len  = strlen(table->procname);
+	qname.name = table ? table->procname : head->dirname;
+	qname.len  = strlen(qname.name);
 	qname.hash = full_name_hash(qname.name, qname.len);
 
 	child = d_lookup(dir, &qname);
@@ -215,49 +221,68 @@ static int proc_sys_fill_cache(struct file *filp, void *dirent,
 	return !!filldir(dirent, qname.name, qname.len, filp->f_pos, ino, type);
 }
 
-static int scan(struct ctl_table_header *head, ctl_table *table,
+static int scan(struct ctl_table_header *head,
 		unsigned long *pos, struct file *file,
 		void *dirent, filldir_t filldir)
 {
+	struct ctl_table_header *h;
+	int res = 0;
 
-	for (; table->procname; table++, (*pos)++) {
-		int res;
+	sysctl_read_lock_head(head);
 
-		/* Can't do anything without a proc name */
-		if (!table->procname)
+	list_for_each_entry(h, &head->ctl_subdirs, ctl_entry) {
+		if (*pos < file->f_pos) {
+			(*pos)++;
+			continue;
+		}
+
+		if (IS_ERR(sysctl_fs_get(h)))
 			continue;
 
-		if (*pos < file->f_pos)
-			continue;
-
-		res = proc_sys_fill_cache(file, dirent, filldir, head, table);
+		res = proc_sys_fill_cache(file, dirent, filldir, h, NULL);
+		sysctl_fs_put(h);
 		if (res)
-			return res;
+			goto out;
 
 		file->f_pos = *pos + 1;
+		(*pos)++;
 	}
-	return 0;
+
+	list_for_each_entry(h, &head->ctl_tables, ctl_entry) {
+		ctl_table *t;
+
+		if (IS_ERR(sysctl_fs_get(h)))
+			continue;
+
+		for (t = h->ctl_table_arg; t->procname; t++, (*pos)++) {
+			if (*pos < file->f_pos)
+				continue;
+
+			res = proc_sys_fill_cache(file, dirent, filldir, h, t);
+			if (res) {
+				sysctl_fs_put(h);
+				goto out;
+			}
+			file->f_pos = *pos + 1;
+		}
+		sysctl_fs_put(h);
+	}
+
+out:
+	sysctl_read_unlock_head(head);
+	return res;
 }
 
 static int proc_sys_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
 	struct dentry *dentry = filp->f_path.dentry;
 	struct inode *inode = dentry->d_inode;
-	struct ctl_table_header *head = grab_header(inode);
-	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
-	struct ctl_table_header *h = NULL;
+	struct ctl_table_header *head = sysctl_fs_get(PROC_I(inode)->sysctl);
 	unsigned long pos;
 	int ret = -EINVAL;
 
 	if (IS_ERR(head))
 		return PTR_ERR(head);
-
-	if (table && !table->child) {
-		WARN_ON(1);
-		goto out;
-	}
-
-	table = table ? table->child : head->ctl_table;
 
 	ret = 0;
 	/* Avoid a switch here: arm builds fail with missing __cmpdi2 */
@@ -274,23 +299,25 @@ static int proc_sys_readdir(struct file *filp, void *dirent, filldir_t filldir)
 		filp->f_pos++;
 	}
 	pos = 2;
-
-	ret = scan(head, table, &pos, filp, dirent, filldir);
-	if (ret)
-		goto out;
-
-	for (h = sysctl_head_next(NULL); h; h = sysctl_head_next(h)) {
-		if (h->attached_to != table)
-			continue;
-		ret = scan(h, h->attached_by, &pos, filp, dirent, filldir);
-		if (ret) {
-			sysctl_head_finish(h);
-			break;
+	ret = scan(head, &pos, filp, dirent, filldir);
+	if (!ret) {
+		/* the netns-correspondent contains only those
+		 * subdirectories that are netns-specific, and not
+		 * shared with the @head directory: there is no
+		 * possibility to list the same directory twice (once
+		 * for @head and once for @netns_corresp). Sibling
+		 * tables cannot contain the entries with the same
+		 * name, no need to worry about them either. */
+		struct ctl_table_header *netns_corresp;
+		netns_corresp = sysctl_fs_get_netns_corresp(head);
+		if (netns_corresp) {
+			ret = scan(netns_corresp, &pos, filp, dirent, filldir);
+			sysctl_fs_put(netns_corresp);
 		}
 	}
 	ret = 1;
 out:
-	sysctl_head_finish(head);
+	sysctl_fs_put(head);
 	return ret;
 }
 
@@ -311,17 +338,17 @@ static int proc_sys_permission(struct inode *inode, int mask,unsigned int flags)
 	if ((mask & MAY_EXEC) && S_ISREG(inode->i_mode))
 		return -EACCES;
 
-	head = grab_header(inode);
+	head = sysctl_fs_get(PROC_I(inode)->sysctl);
 	if (IS_ERR(head))
 		return PTR_ERR(head);
 
 	table = PROC_I(inode)->sysctl_entry;
-	if (!table) /* global root - r-xr-xr-x */
+	if (!table) /* directory - r-xr-xr-x */
 		error = mask & MAY_WRITE ? -EACCES : 0;
 	else /* Use the permissions on the sysctl table entry */
-		error = sysctl_perm(head->root, table, mask);
+		error = sysctl_perm(head->ctl_group, table, mask);
 
-	sysctl_head_finish(head);
+	sysctl_fs_put(head);
 	return error;
 }
 
@@ -352,17 +379,18 @@ static int proc_sys_setattr(struct dentry *dentry, struct iattr *attr)
 static int proc_sys_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 {
 	struct inode *inode = dentry->d_inode;
-	struct ctl_table_header *head = grab_header(inode);
+	struct ctl_table_header *head = sysctl_fs_get(PROC_I(inode)->sysctl);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
 
 	if (IS_ERR(head))
 		return PTR_ERR(head);
 
 	generic_fillattr(inode, stat);
+
 	if (table)
 		stat->mode = (stat->mode & S_IFMT) | table->mode;
 
-	sysctl_head_finish(head);
+	sysctl_fs_put(head);
 	return 0;
 }
 
@@ -435,5 +463,6 @@ int __init proc_sys_init(void)
 	proc_sys_root->proc_iops = &proc_sys_dir_operations;
 	proc_sys_root->proc_fops = &proc_sys_dir_file_operations;
 	proc_sys_root->nlink = 0;
+
 	return 0;
 }

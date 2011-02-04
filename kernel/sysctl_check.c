@@ -1,160 +1,152 @@
-#include <linux/stat.h>
 #include <linux/sysctl.h>
-#include "../fs/xfs/linux-2.6/xfs_sysctl.h"
-#include <linux/sunrpc/debug.h>
 #include <linux/string.h>
-#include <net/ip_vs.h>
 
-
-static int sysctl_depth(struct ctl_table *table)
+/*
+ * @path: the path to the offender
+ * @offender is the name of a file or directory that violated some sysctl rules.
+ * @str: a message accompanying the error
+ */
+static void fail(const struct ctl_path *path,
+		 const char *offender,
+		 const char *str)
 {
-	struct ctl_table *tmp;
-	int depth;
+	printk(KERN_ERR "sysctl sanity check failed: ");
 
-	depth = 0;
-	for (tmp = table; tmp->parent; tmp = tmp->parent)
-		depth++;
+	for (; path->procname; path++)
+		printk("/%s", path->procname);
 
-	return depth;
+	if (offender)
+		printk("/%s", offender);
+
+	printk(": %s\n", str);
 }
 
-static struct ctl_table *sysctl_parent(struct ctl_table *table, int n)
+#define FAIL(str) do { fail(path, t->procname, str); error = -EINVAL;} while (0)
+
+int sysctl_check_table(const struct ctl_path *path,
+		       int nr_dirs,
+		       struct ctl_table *table)
 {
-	int i;
-
-	for (i = 0; table && i < n; i++)
-		table = table->parent;
-
-	return table;
-}
-
-
-static void sysctl_print_path(struct ctl_table *table)
-{
-	struct ctl_table *tmp;
-	int depth, i;
-	depth = sysctl_depth(table);
-	if (table->procname) {
-		for (i = depth; i >= 0; i--) {
-			tmp = sysctl_parent(table, i);
-			printk("/%s", tmp->procname?tmp->procname:"");
-		}
-	}
-	printk(" ");
-}
-
-static struct ctl_table *sysctl_check_lookup(struct nsproxy *namespaces,
-						struct ctl_table *table)
-{
-	struct ctl_table_header *head;
-	struct ctl_table *ref, *test;
-	int depth, cur_depth;
-
-	depth = sysctl_depth(table);
-
-	for (head = __sysctl_head_next(namespaces, NULL); head;
-	     head = __sysctl_head_next(namespaces, head)) {
-		cur_depth = depth;
-		ref = head->ctl_table;
-repeat:
-		test = sysctl_parent(table, cur_depth);
-		for (; ref->procname; ref++) {
-			int match = 0;
-			if (cur_depth && !ref->child)
-				continue;
-
-			if (test->procname && ref->procname &&
-			    (strcmp(test->procname, ref->procname) == 0))
-					match++;
-
-			if (match) {
-				if (cur_depth != 0) {
-					cur_depth--;
-					ref = ref->child;
-					goto repeat;
-				}
-				goto out;
-			}
-		}
-	}
-	ref = NULL;
-out:
-	sysctl_head_finish(head);
-	return ref;
-}
-
-static void set_fail(const char **fail, struct ctl_table *table, const char *str)
-{
-	if (*fail) {
-		printk(KERN_ERR "sysctl table check failed: ");
-		sysctl_print_path(table);
-		printk(" %s\n", *fail);
-		dump_stack();
-	}
-	*fail = str;
-}
-
-static void sysctl_check_leaf(struct nsproxy *namespaces,
-				struct ctl_table *table, const char **fail)
-{
-	struct ctl_table *ref;
-
-	ref = sysctl_check_lookup(namespaces, table);
-	if (ref && (ref != table))
-		set_fail(fail, table, "Sysctl already exists");
-}
-
-int sysctl_check_table(struct nsproxy *namespaces, struct ctl_table *table)
-{
+	struct ctl_table *t;
 	int error = 0;
-	for (; table->procname; table++) {
-		const char *fail = NULL;
 
-		if (table->parent) {
-			if (!table->parent->procname)
-				set_fail(&fail, table, "Parent without procname");
-		}
-		if (table->child) {
-			if (table->data)
-				set_fail(&fail, table, "Directory with data?");
-			if (table->maxlen)
-				set_fail(&fail, table, "Directory with maxlen?");
-			if ((table->mode & (S_IRUGO|S_IXUGO)) != table->mode)
-				set_fail(&fail, table, "Writable sysctl directory");
-			if (table->proc_handler)
-				set_fail(&fail, table, "Directory with proc_handler");
-			if (table->extra1)
-				set_fail(&fail, table, "Directory with extra1");
-			if (table->extra2)
-				set_fail(&fail, table, "Directory with extra2");
-		} else {
-			if ((table->proc_handler == proc_dostring) ||
-			    (table->proc_handler == proc_dointvec) ||
-			    (table->proc_handler == proc_dointvec_minmax) ||
-			    (table->proc_handler == proc_dointvec_jiffies) ||
-			    (table->proc_handler == proc_dointvec_userhz_jiffies) ||
-			    (table->proc_handler == proc_dointvec_ms_jiffies) ||
-			    (table->proc_handler == proc_doulongvec_minmax) ||
-			    (table->proc_handler == proc_doulongvec_ms_jiffies_minmax)) {
-				if (!table->data)
-					set_fail(&fail, table, "No data");
-				if (!table->maxlen)
-					set_fail(&fail, table, "No maxlen");
-			}
-#ifdef CONFIG_PROC_SYSCTL
-			if (!table->proc_handler)
-				set_fail(&fail, table, "No proc_handler");
-#endif
-			sysctl_check_leaf(namespaces, table, &fail);
-		}
-		if (table->mode > 0777)
-			set_fail(&fail, table, "bogus .mode");
-		if (fail) {
-			set_fail(&fail, table, NULL);
-			error = -EINVAL;
-		}
-		if (table->child)
-			error |= sysctl_check_table(namespaces, table->child);
+	if (nr_dirs > CTL_MAXNAME - 1) {
+		fail(path, NULL, "tree too deep");
+		error = -EINVAL;
 	}
+
+	for(t = table; t->procname; t++) {
+		if ((t->proc_handler == proc_dostring) ||
+		    (t->proc_handler == proc_dointvec) ||
+		    (t->proc_handler == proc_dointvec_minmax) ||
+		    (t->proc_handler == proc_dointvec_jiffies) ||
+		    (t->proc_handler == proc_dointvec_userhz_jiffies) ||
+		    (t->proc_handler == proc_dointvec_ms_jiffies) ||
+		    (t->proc_handler == proc_doulongvec_minmax) ||
+		    (t->proc_handler == proc_doulongvec_ms_jiffies_minmax)) {
+			if (!t->data)
+				FAIL("No data");
+			if (!t->maxlen)
+				FAIL("No maxlen");
+		}
+#ifdef CONFIG_PROC_SYSCTL
+		if (!t->proc_handler)
+			FAIL("No proc_handler");
+#endif
+		if (t->mode > 0777)
+			FAIL("bogus .mode");
+	}
+
+	if (error)
+		dump_stack();
+
 	return error;
+}
+
+
+/*
+ * @dir: the directory imediately above the offender
+ * @offender is the name of a file or directory that violated some sysctl rules.
+ */
+static void duplicate_error(struct ctl_table_header *dir,
+			    const char *offender)
+{
+	const char *names[CTL_MAXNAME];
+	int i = 0;
+
+	printk(KERN_ERR "sysctl duplicate check failed: ");
+
+	for (; dir->parent; dir = dir->parent)
+		/* dirname can be NULL: netns-correspondent
+		 * directories do not have a dirname. Their only
+		 * pourpose is to hold the list of
+		 * subdirs/subtables. They hold netns-specific
+		 * information for the parent directory. */
+		if (dir->dirname) {
+			names[i] = dir->dirname;
+			i++;
+		}
+
+	/* Print the names in the normal path order, not reversed */
+	for(i--; i >= 0; i--)
+		printk("/%s", names[i]);
+
+	printk("/%s \n", offender);
+}
+
+/* is there an entry in the table with the same procname? */
+static int match(struct ctl_table *table, const char *name)
+{
+	for ( ; table->procname; table++) {
+
+		if (strcmp(table->procname, name) == 0)
+			return 1;
+	}
+	return 0;
+}
+
+
+/* Called under header->parent write lock.
+ *
+ * checks whether this header's table introduces items that have the
+ * same names as other items at the same level (other files or
+ * subdirectories of the current dir). */
+int sysctl_check_duplicates(struct ctl_table_header *header)
+{
+	int has_duplicates = 0;
+	struct ctl_table *table = header->ctl_table_arg;
+	struct ctl_table_header *dir = header->parent;
+	struct ctl_table_header *h;
+
+	list_for_each_entry(h, &dir->ctl_subdirs, ctl_entry) {
+		if (IS_ERR(sysctl_fs_get(h)))
+			continue;
+
+		if (match(table, h->dirname)) {
+			has_duplicates = 1;
+			duplicate_error(dir, h->dirname);
+		}
+
+		sysctl_fs_put(h);
+	}
+
+	list_for_each_entry(h, &dir->ctl_tables, ctl_entry) {
+		ctl_table *t;
+
+		if (IS_ERR(sysctl_fs_get(h)))
+			continue;
+
+		for (t = h->ctl_table_arg; t->procname; t++) {
+			if (match(table, t->procname)) {
+				has_duplicates = 1;
+				duplicate_error(dir, t->procname);
+			}
+		}
+		sysctl_fs_put(h);
+	}
+
+	if (has_duplicates)
+		dump_stack();
+
+	return has_duplicates;
 }

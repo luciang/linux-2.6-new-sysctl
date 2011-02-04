@@ -68,6 +68,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/slab.h>
 #include <linux/perf_event.h>
+#include <linux/sysctl.h>
 
 #include <asm/io.h>
 #include <asm/bugs.h>
@@ -595,6 +596,7 @@ asmlinkage void __init start_kernel(void)
 		efi_enter_virtual_mode();
 #endif
 	thread_info_cache_init();
+	sysctl_init();
 	cred_init();
 	fork_init(totalram_pages);
 	proc_caches_init();

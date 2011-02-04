@@ -29,21 +29,13 @@
 #include <linux/if_tr.h>
 #endif
 
-static struct ctl_table_set *
-net_ctl_header_lookup(struct ctl_table_root *root, struct nsproxy *namespaces)
+static int is_seen(struct ctl_table_group *group)
 {
-	return &namespaces->net_ns->sysctls;
-}
-
-static int is_seen(struct ctl_table_set *set)
-{
-	return &current->nsproxy->net_ns->sysctls == set;
+	return &current->nsproxy->net_ns->netns_ctl_group == group;
 }
 
 /* Return standard mode bits for table entry. */
-static int net_ctl_permissions(struct ctl_table_root *root,
-			       struct nsproxy *nsproxy,
-			       struct ctl_table *table)
+static int net_ctl_permissions(struct ctl_table *table)
 {
 	/* Allow network administrator to have same access as root. */
 	if (capable(CAP_NET_ADMIN)) {
@@ -53,35 +45,39 @@ static int net_ctl_permissions(struct ctl_table_root *root,
 	return table->mode;
 }
 
-static struct ctl_table_root net_sysctl_root = {
-	.lookup = net_ctl_header_lookup,
+static const struct ctl_table_group_ops net_sysctl_group_ops = {
+	.is_seen = is_seen,
 	.permissions = net_ctl_permissions,
 };
 
-static int net_ctl_ro_header_perms(struct ctl_table_root *root,
-		struct nsproxy *namespaces, struct ctl_table *table)
+static int net_ctl_ro_permissions(struct ctl_table *table)
 {
-	if (net_eq(namespaces->net_ns, &init_net))
+	if (net_eq(current->nsproxy->net_ns, &init_net))
 		return table->mode;
 	else
 		return table->mode & ~0222;
 }
 
-static struct ctl_table_root net_sysctl_ro_root = {
-	.permissions = net_ctl_ro_header_perms,
+static const struct ctl_table_group_ops net_sysctl_ro_group_ops = {
+	.permissions = net_ctl_ro_permissions,
+};
+static struct ctl_table_group net_sysctl_ro_group = {
+	.has_netns_corresp = 0,
+	.ctl_ops = &net_sysctl_ro_group_ops,
 };
 
 static int __net_init sysctl_net_init(struct net *net)
 {
-	setup_sysctl_set(&net->sysctls,
-			 &net_sysctl_ro_root.default_set,
-			 is_seen);
+	int has_netns_corresp = 1;
+
+	sysctl_init_group(&net->netns_ctl_group, &net_sysctl_group_ops,
+			  has_netns_corresp);
 	return 0;
 }
 
 static void __net_exit sysctl_net_exit(struct net *net)
 {
-	WARN_ON(!list_empty(&net->sysctls.list));
+	WARN_ON(!list_empty(&net->netns_ctl_group.corresp_list));
 }
 
 static struct pernet_operations sysctl_pernet_ops = {
@@ -89,36 +85,29 @@ static struct pernet_operations sysctl_pernet_ops = {
 	.exit = sysctl_net_exit,
 };
 
-static __init int sysctl_init(void)
+static __init int net_sysctl_init(void)
 {
 	int ret;
 	ret = register_pernet_subsys(&sysctl_pernet_ops);
 	if (ret)
 		goto out;
-	register_sysctl_root(&net_sysctl_root);
-	setup_sysctl_set(&net_sysctl_ro_root.default_set, NULL, NULL);
-	register_sysctl_root(&net_sysctl_ro_root);
 out:
 	return ret;
 }
-subsys_initcall(sysctl_init);
+subsys_initcall(net_sysctl_init);
 
 struct ctl_table_header *register_net_sysctl_table(struct net *net,
-	const struct ctl_path *path, struct ctl_table *table)
+						   const struct ctl_path *path,
+						   struct ctl_table *table)
 {
-	struct nsproxy namespaces;
-	namespaces = *current->nsproxy;
-	namespaces.net_ns = net;
-	return __register_sysctl_paths(&net_sysctl_root,
-					&namespaces, path, table);
+	return __register_sysctl_paths(&net->netns_ctl_group, path, table);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table);
 
-struct ctl_table_header *register_net_sysctl_rotable(const
-		struct ctl_path *path, struct ctl_table *table)
+struct ctl_table_header *register_net_sysctl_rotable(const struct ctl_path *path,
+						     struct ctl_table *table)
 {
-	return __register_sysctl_paths(&net_sysctl_ro_root,
-			&init_nsproxy, path, table);
+	return __register_sysctl_paths(&net_sysctl_ro_group, path, table);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_rotable);
 

@@ -56,6 +56,7 @@
 #include <linux/kprobes.h>
 #include <linux/pipe_fs_i.h>
 #include <linux/oom.h>
+#include <linux/rwsem.h>
 
 #include <asm/uaccess.h>
 #include <asm/processor.h>
@@ -197,18 +198,22 @@ static int sysrq_sysctl_handler(ctl_table *table, int write,
 
 #endif
 
-static struct ctl_table root_table[];
-static struct ctl_table_root sysctl_table_root;
-static struct ctl_table_header root_table_header = {
-	{{.count = 1,
-	.ctl_table = root_table,
-	.ctl_entry = LIST_HEAD_INIT(sysctl_table_root.default_set.list),}},
-	.root = &sysctl_table_root,
-	.set = &sysctl_table_root.default_set,
+static struct kmem_cache *sysctl_header_cachep;
+
+/* uses default ops and does not need the corresp_list */
+static struct ctl_table_group_ops root_table_group_ops = { };
+
+static struct ctl_table_group root_table_group = {
+	.has_netns_corresp = 0,
+	.ctl_ops = &root_table_group_ops,
 };
-static struct ctl_table_root sysctl_table_root = {
-	.root_list = LIST_HEAD_INIT(sysctl_table_root.root_list),
-	.default_set.list = LIST_HEAD_INIT(root_table_header.ctl_entry),
+
+static struct ctl_table_header root_table_header = {
+	{{.header_refs = 1,
+	  .ctl_entry	= LIST_HEAD_INIT(root_table_header.ctl_entry),}},
+	.ctl_tables	= LIST_HEAD_INIT(root_table_header.ctl_tables),
+	.ctl_subdirs	= LIST_HEAD_INIT(root_table_header.ctl_subdirs),
+	.ctl_group	= &root_table_group,
 };
 
 #ifdef HAVE_ARCH_PICK_MMAP_LAYOUT
@@ -216,10 +221,6 @@ int sysctl_legacy_va_layout;
 #endif
 
 /* The default sysctl tables: */
-
-static struct ctl_table root_table[] = {
-	{ }
-};
 
 #ifdef CONFIG_SCHED_DEBUG
 static int min_sched_granularity_ns = 100000;		/* 100 usecs */
@@ -1489,22 +1490,28 @@ static struct ctl_table dev_table[] = {
 
 static DEFINE_SPINLOCK(sysctl_lock);
 
-/* called under sysctl_lock */
-static int use_table(struct ctl_table_header *p)
+
+/* if it's deemed necessary, we can create a per-header rwsem. For now
+ * a global one will do. */
+static DECLARE_RWSEM(sysctl_rwsem);
+void sysctl_write_lock_head(struct ctl_table_header *head)
 {
-	if (unlikely(p->unregistering))
-		return 0;
-	p->used++;
-	return 1;
+	down_write(&sysctl_rwsem);
+}
+void sysctl_write_unlock_head(struct ctl_table_header *head)
+{
+	up_write(&sysctl_rwsem);
+}
+void sysctl_read_lock_head(struct ctl_table_header *head)
+{
+	down_read(&sysctl_rwsem);
+}
+void sysctl_read_unlock_head(struct ctl_table_header *head)
+{
+	up_read(&sysctl_rwsem);
 }
 
-/* called under sysctl_lock */
-static void unuse_table(struct ctl_table_header *p)
-{
-	if (!--p->used)
-		if (unlikely(p->unregistering))
-			complete(p->unregistering);
-}
+
 
 /* called under sysctl_lock, will reacquire if has to wait */
 static void start_unregistering(struct ctl_table_header *p)
@@ -1513,7 +1520,7 @@ static void start_unregistering(struct ctl_table_header *p)
 	 * if p->used is 0, nobody will ever touch that entry again;
 	 * we'll eliminate all paths to it before dropping sysctl_lock
 	 */
-	if (unlikely(p->used)) {
+	if (unlikely(p->fs_func_refs)) {
 		struct completion wait;
 		init_completion(&wait);
 		p->unregistering = &wait;
@@ -1524,123 +1531,105 @@ static void start_unregistering(struct ctl_table_header *p)
 		/* anything non-NULL; we'll never dereference it */
 		p->unregistering = ERR_PTR(-EINVAL);
 	}
-	/*
-	 * do not remove from the list until nobody holds it; walking the
-	 * list in do_sysctl() relies on that.
-	 */
-	list_del_init(&p->ctl_entry);
 }
 
-void sysctl_head_get(struct ctl_table_header *head)
+void sysctl_proc_inode_get(struct ctl_table_header *head)
 {
 	spin_lock(&sysctl_lock);
-	head->count++;
+	head->proc_inode_refs++;
 	spin_unlock(&sysctl_lock);
 }
 
 static void free_head(struct rcu_head *rcu)
 {
-	kfree(container_of(rcu, struct ctl_table_header, rcu));
+	struct ctl_table_header *header;
+	header = container_of(rcu, struct ctl_table_header, rcu);
+	kmem_cache_free(sysctl_header_cachep, header);
 }
 
-void sysctl_head_put(struct ctl_table_header *head)
+void sysctl_proc_inode_put(struct ctl_table_header *head)
 {
 	spin_lock(&sysctl_lock);
-	if (!--head->count)
+	head->proc_inode_refs--;
+	if ((head->header_refs == 0) && (head->proc_inode_refs == 0))
 		call_rcu(&head->rcu, free_head);
 	spin_unlock(&sysctl_lock);
 }
 
-struct ctl_table_header *sysctl_head_grab(struct ctl_table_header *head)
+/* called under sysctl_lock */
+static struct ctl_table_header *__sysctl_fs_get(struct ctl_table_header *head)
+{
+	if (unlikely(head->unregistering))
+		return ERR_PTR(-ENOENT);
+
+	head->fs_func_refs++;
+	return head;
+}
+
+struct ctl_table_header *sysctl_fs_get(struct ctl_table_header *head)
 {
 	if (!head)
-		BUG();
+		head = &root_table_header;
+
 	spin_lock(&sysctl_lock);
-	if (!use_table(head))
-		head = ERR_PTR(-ENOENT);
+	head = __sysctl_fs_get(head);
 	spin_unlock(&sysctl_lock);
 	return head;
 }
 
-void sysctl_head_finish(struct ctl_table_header *head)
+void sysctl_fs_put(struct ctl_table_header *head)
 {
 	if (!head)
 		return;
 	spin_lock(&sysctl_lock);
-	unuse_table(head);
+
+	if (!--head->fs_func_refs)
+		if (unlikely(head->unregistering))
+			complete(head->unregistering);
+
 	spin_unlock(&sysctl_lock);
 }
 
-static struct ctl_table_set *
-lookup_header_set(struct ctl_table_root *root, struct nsproxy *namespaces)
+/* must be called with set protector lock (currently this is sysctl_lock) */
+static struct ctl_table_header *sysctl_fs_get_netns_corresp_dflt(
+	struct ctl_table_group *group,
+	struct ctl_table_header *head,
+	struct ctl_table_header *dflt)
 {
-	struct ctl_table_set *set = &root->default_set;
-	if (root->lookup)
-		set = root->lookup(root, namespaces);
-	return set;
-}
-
-static struct list_head *
-lookup_header_list(struct ctl_table_root *root, struct nsproxy *namespaces)
-{
-	struct ctl_table_set *set = lookup_header_set(root, namespaces);
-	return &set->list;
-}
-
-struct ctl_table_header *__sysctl_head_next(struct nsproxy *namespaces,
-					    struct ctl_table_header *prev)
-{
-	struct ctl_table_root *root;
-	struct list_head *header_list;
-	struct ctl_table_header *head;
-	struct list_head *tmp;
+	struct ctl_table_header *h, *ret = NULL;
 
 	spin_lock(&sysctl_lock);
-	if (prev) {
-		head = prev;
-		tmp = &prev->ctl_entry;
-		unuse_table(prev);
-		goto next;
-	}
-	tmp = &root_table_header.ctl_entry;
-	for (;;) {
-		head = list_entry(tmp, struct ctl_table_header, ctl_entry);
 
-		if (!use_table(head))
-			goto next;
-		spin_unlock(&sysctl_lock);
-		return head;
-	next:
-		root = head->root;
-		tmp = tmp->next;
-		header_list = lookup_header_list(root, namespaces);
-		if (tmp != header_list)
+	list_for_each_entry(h, &group->corresp_list, ctl_entry) {
+		if (h->parent != head)
 			continue;
-
-		do {
-			root = list_entry(root->root_list.next,
-					struct ctl_table_root, root_list);
-			if (root == &sysctl_table_root)
-				goto out;
-			header_list = lookup_header_list(root, namespaces);
-		} while (list_empty(header_list));
-		tmp = header_list->next;
+		if (IS_ERR(__sysctl_fs_get(h)))
+			continue;
+		ret = h;
+		goto out;
 	}
+
+	if (!dflt)
+		goto out;
+
+	/* will not fail because dflt is a brand-new header that no
+	 * one has seen yet, so no one has started to unregister it */
+	dflt = __sysctl_fs_get(dflt);
+	dflt->parent = head;
+	list_add_tail(&dflt->ctl_entry, &group->corresp_list);
+	ret = dflt;
+
 out:
 	spin_unlock(&sysctl_lock);
-	return NULL;
+	return ret;
 }
 
-struct ctl_table_header *sysctl_head_next(struct ctl_table_header *prev)
+struct ctl_table_header *sysctl_fs_get_netns_corresp(struct ctl_table_header *h)
 {
-	return __sysctl_head_next(current->nsproxy, prev);
-}
-
-void register_sysctl_root(struct ctl_table_root *root)
-{
-	spin_lock(&sysctl_lock);
-	list_add_tail(&root->root_list, &sysctl_table_root.root_list);
-	spin_unlock(&sysctl_lock);
+	struct ctl_table_group *g = &current->nsproxy->net_ns->netns_ctl_group;
+	/* dflt == NULL means: if there's a set-part return it,
+	 *                     if there isn't, just return NULL */
+	return sysctl_fs_get_netns_corresp_dflt(g, h, NULL);
 }
 
 /*
@@ -1659,28 +1648,21 @@ static int test_perm(int mode, int op)
 	return -EACCES;
 }
 
-int sysctl_perm(struct ctl_table_root *root, struct ctl_table *table, int op)
+int sysctl_perm(struct ctl_table_group *group, struct ctl_table *table, int op)
 {
 	int mode;
 
-	if (root->permissions)
-		mode = root->permissions(root, current->nsproxy, table);
+	if (group->ctl_ops->permissions)
+		mode = group->ctl_ops->permissions(table);
 	else
 		mode = table->mode;
 
 	return test_perm(mode, op);
 }
 
-static void sysctl_set_parent(struct ctl_table *parent, struct ctl_table *table)
-{
-	for (; table->procname; table++) {
-		table->parent = parent;
-		if (table->child)
-			sysctl_set_parent(table, table->child);
-	}
-}
+static void sysctl_header_ctor(void *data);
 
-static __init int sysctl_init(void)
+__init int sysctl_init(void)
 {
 	struct ctl_table_header *kern_header, *vm_header, *fs_header,
 		*debug_header, *dev_header;
@@ -1688,7 +1670,11 @@ static __init int sysctl_init(void)
 	struct ctl_table_header *binfmt_misc_header;
 #endif
 
-	sysctl_set_parent(NULL, root_table);
+	sysctl_header_cachep = kmem_cache_create("sysctl_header_cachep",
+					       sizeof(struct ctl_table_header),
+					       0, 0, &sysctl_header_ctor);
+	if (!sysctl_header_cachep)
+		goto fail_alloc_cachep;
 
 	kern_header = register_sysctl_paths(kern_path, kern_table);
 	if (kern_header == NULL)
@@ -1716,10 +1702,6 @@ static __init int sysctl_init(void)
 		goto fail_register_binfmt_misc;
 #endif
 
-
-#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
-	sysctl_check_table(current->nsproxy, root_table);
-#endif
 	return 0;
 
 
@@ -1737,62 +1719,233 @@ fail_register_fs:
 fail_register_vm:
 	unregister_sysctl_table(kern_header);
 fail_register_kern:
+	kmem_cache_destroy(sysctl_header_cachep);
+fail_alloc_cachep:
 	return -ENOMEM;
 }
 
-core_initcall(sysctl_init);
-
-static struct ctl_table *is_branch_in(struct ctl_table *branch,
-				      struct ctl_table *table)
+static void header_refs_inc(struct ctl_table_header*head)
 {
-	struct ctl_table *p;
-	const char *s = branch->procname;
+	spin_lock(&sysctl_lock);
+	head->header_refs ++;
+	spin_unlock(&sysctl_lock);
+}
 
-	/* branch should have named subdirectory as its first element */
-	if (!s || !branch->child)
+static int ctl_path_items(const struct ctl_path *path)
+{
+	int n = 0;
+	while (path->procname) {
+		path++;
+		n++;
+	}
+	return n;
+}
+
+static void sysctl_header_ctor(void *data)
+{
+	struct ctl_table_header *h = data;
+
+	h->fs_func_refs = 0;
+	h->proc_inode_refs = 0;
+	h->header_refs = 0;
+
+	INIT_LIST_HEAD(&h->ctl_entry);
+	INIT_LIST_HEAD(&h->ctl_subdirs);
+	INIT_LIST_HEAD(&h->ctl_tables);
+}
+
+static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *group)
+{
+	struct ctl_table_header *h;
+
+	h = kmem_cache_alloc(sysctl_header_cachep, GFP_KERNEL);
+	if (!h)
 		return NULL;
 
-	/* ... and nothing else */
-	if (branch[1].procname)
-		return NULL;
+	/* - all _refs members are zero before freeing
+	 * - all list_head members point to themselves (empty lists) */
 
-	/* table should contain subdirectory with the same name */
-	for (p = table; p->procname; p++) {
-		if (!p->child)
+	h->ctl_table_arg = NULL;
+	h->unregistering = NULL;
+	h->ctl_group = group;
+
+	return h;
+}
+
+/* Increment the references to an existing subdir of @parent with the name
+ * @name and return that subdir. If no such subdir exists, return NULL.
+ * Called under the write lock protecting parent's ctl_subdirs. */
+static struct ctl_table_header *mkdir_existing_dir(struct ctl_table_header *parent,
+						   const char *name)
+{
+	struct ctl_table_header *h;
+	list_for_each_entry(h, &parent->ctl_subdirs, ctl_entry) {
+		if (IS_ERR(sysctl_fs_get(h)))
 			continue;
-		if (p->procname && strcmp(p->procname, s) == 0)
-			return p;
+		if (strcmp(name, h->dirname) == 0) {
+			header_refs_inc(h);
+			sysctl_fs_put(h);
+			return h;
+		}
+		sysctl_fs_put(h);
 	}
 	return NULL;
 }
 
-/* see if attaching q to p would be an improvement */
-static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
+/* Some sysctl paths are netns-specific. The last directory that in
+ * not net-ns specific will have a corespondent dir in the netns
+ * specific ctl_table_set. That corespondent will hold the lists of
+ * netns specific tables and subdirectories.
+ *
+ * E.g.: registering netns/interface specific directories:
+ *       common path: /proc/sys/net/ipv4/
+ *        netns path: /proc/sys/net/ipv4/conf/lo/
+ * We'll create an (unnamed) netns correspondent for 'ipv4' which will
+ * have 'conf' as it's subdir.
+ *
+ * E.g.: We're registering a netns specific file in /proc/sys/net/core/somaxconn
+ *       common path: /proc/sys/net/core/
+ *        netns path: /proc/sys/net/core/
+ * We'll create an (unnamed) netns correspondent for 'core'.
+ */
+static struct ctl_table_header *mkdir_netns_corresp(
+	struct ctl_table_header *parent,
+	struct ctl_table_group *group,
+	struct ctl_table_header **__netns_corresp)
 {
-	struct ctl_table *to = p->ctl_table, *by = q->ctl_table;
-	struct ctl_table *next;
-	int is_better = 0;
-	int not_in_parent = !p->attached_by;
+	struct ctl_table_header *ret;
 
-	while ((next = is_branch_in(by, to)) != NULL) {
-		if (by == q->attached_by)
-			is_better = 1;
-		if (to == p->attached_by)
-			not_in_parent = 1;
-		by = by->child;
-		to = next->child;
+	ret = sysctl_fs_get_netns_corresp_dflt(group, parent, *__netns_corresp);
+
+	/* *__netns_corresp is a pre-allocated header. If we used it
+            here, we have to tell the caller so it won't free it. */
+	if (*__netns_corresp == ret)
+		*__netns_corresp = NULL;
+
+	header_refs_inc(ret);
+	sysctl_fs_put(ret);
+	return ret;
+}
+
+/* Add @dir as a subdir of @parent.
+ * Called under the write lock protecting parent's ctl_subdirs. */
+static struct ctl_table_header *mkdir_new_dir(struct ctl_table_header *parent,
+					      struct ctl_table_header *dir)
+{
+	dir->parent = parent;
+	header_refs_inc(dir);
+	list_add_tail(&dir->ctl_entry, &parent->ctl_subdirs);
+	return dir;
+}
+
+/*
+ * Attach the branch denoted by @dirs (a series of directories that
+ * are children of their predecessor in the array) to @parent.
+ *
+ * If at a level there exist in the parent tree a node with the same
+ * name as the one we're trying to add, increment that nodes'
+ * @count. If not, add that dir as a subdir of it's parent.
+ *
+ * Nodes that remain non-NULL in @dirs must be freed by the caller as
+ * they were not added to the tree.
+ *
+ * Return the corresponding ctl_table_header for dirs[nr_dirs-1] from
+ * the tree (either one added by this function, or one already in the
+ * tree).
+ */
+static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
+					      struct ctl_table_group *group,
+					      const struct ctl_path *path,
+					      int nr_dirs)
+{
+	struct ctl_table_header *dirs[CTL_MAXNAME];
+	struct ctl_table_header *__netns_corresp = NULL;
+	int create_first_netns_corresp = group->has_netns_corresp;
+	int i;
+
+	/* We create excess ctl_table_header for directory entries.
+	 * We do so because we may need new headers while under a lock
+	 * where we will not be able to allocate entries (sleeping).
+	 * Also, this simplifies handling of ENOMEM: no need to remove
+	 * already allocated/added directories and unlink them from
+	 * their parent directories. Stuff that is not used will be
+	 * freed at the end. */
+	for (i = 0; i < nr_dirs; i++) {
+		dirs[i] = alloc_sysctl_header(group);
+		if (!dirs[i])
+			goto err_alloc_dir;
+		dirs[i]->dirname = path[i].procname;
 	}
 
-	if (is_better && not_in_parent) {
-		q->attached_by = by;
-		q->attached_to = to;
-		q->parent = p;
+	if (create_first_netns_corresp) {
+		/* The netns correspondent for the last common path
+		 * component migh exist.  However we will only know
+		 * this later while being under a lock. We
+		 * pre-allocate it just in case it might be needed and
+		 * free it at the end only if it wasn't used. */
+		__netns_corresp = alloc_sysctl_header(group);
+		if (!__netns_corresp)
+			goto err_alloc_coresp;
 	}
+
+	header_refs_inc(parent);
+
+	for (i = 0; i < nr_dirs; i++) {
+		struct ctl_table_header *h;
+
+	retry:
+		sysctl_write_lock_head(parent);
+
+		h = mkdir_existing_dir(parent, dirs[i]->dirname);
+		if (h != NULL) {
+			sysctl_write_unlock_head(parent);
+			parent = h;
+			continue;
+		}
+
+		if (likely(!create_first_netns_corresp)) {
+			h = mkdir_new_dir(parent, dirs[i]);
+			sysctl_write_unlock_head(parent);
+			parent = h;
+			dirs[i] = NULL; /* I'm used, don't free me */
+			continue;
+		}
+
+		sysctl_write_unlock_head(parent);
+
+		create_first_netns_corresp = 0;
+		parent = mkdir_netns_corresp(parent, group, &__netns_corresp);
+		/* We still have to add the new subdirectory, but
+		 * instead of adding it into the common parent, add it
+		 * to it's netns correspondent. */
+		goto retry;
+	}
+
+	if (create_first_netns_corresp)
+		parent = mkdir_netns_corresp(parent, group, &__netns_corresp);
+
+	if (__netns_corresp)
+		kmem_cache_free(sysctl_header_cachep, __netns_corresp);
+
+	/* free unused pre-allocated entries */
+	for (i = 0; i < nr_dirs; i++)
+		if (dirs[i])
+			kmem_cache_free(sysctl_header_cachep, dirs[i]);
+
+	return parent;
+
+err_alloc_coresp:
+	i = nr_dirs;
+err_alloc_dir:
+	for (i--; i >= 0; i--)
+		kmem_cache_free(sysctl_header_cachep, dirs[i]);
+	return NULL;
+
 }
 
 /**
  * __register_sysctl_paths - register a sysctl hierarchy
- * @root: List of sysctl headers to register on
+ * @group: Group of sysctl headers to register on
  * @namespaces: Data to compute which lists of sysctl entries are visible
  * @path: The path to the directory the sysctl table is in.
  * @table: the top-level table structure
@@ -1810,9 +1963,6 @@ static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
  * maxlen - the maximum size in bytes of the data
  *
  * mode - the file permissions for the /proc/sys file, and for sysctl(2)
- *
- * child - a pointer to the child sysctl table if this entry is a directory, or
- *         %NULL.
  *
  * proc_handler - the text handler routine (described below)
  *
@@ -1844,77 +1994,46 @@ static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
  * to the table header on success.
  */
 struct ctl_table_header *__register_sysctl_paths(
-	struct ctl_table_root *root,
-	struct nsproxy *namespaces,
-	const struct ctl_path *path, struct ctl_table *table)
+	struct ctl_table_group *group,
+	const struct ctl_path *path,
+	struct ctl_table *table)
 {
 	struct ctl_table_header *header;
-	struct ctl_table *new, **prevp;
-	unsigned int n, npath;
-	struct ctl_table_set *set;
+	int failed_duplicate_check = 0;
+	int nr_dirs = ctl_path_items(path);
 
-	/* Count the path components */
-	for (npath = 0; path[npath].procname; ++npath)
-		;
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+	if (sysctl_check_table(path, nr_dirs, table))
+		return NULL;
+#endif
 
-	/*
-	 * For each path component, allocate a 2-element ctl_table array.
-	 * The first array element will be filled with the sysctl entry
-	 * for this, the second will be the sentinel (procname == 0).
-	 *
-	 * We allocate everything in one go so that we don't have to
-	 * worry about freeing additional memory in unregister_sysctl_table.
-	 */
-	header = kzalloc(sizeof(struct ctl_table_header) +
-			 (2 * npath * sizeof(struct ctl_table)), GFP_KERNEL);
+	header = alloc_sysctl_header(group);
 	if (!header)
 		return NULL;
 
-	new = (struct ctl_table *) (header + 1);
-
-	/* Now connect the dots */
-	prevp = &header->ctl_table;
-	for (n = 0; n < npath; ++n, ++path) {
-		/* Copy the procname */
-		new->procname = path->procname;
-		new->mode     = 0555;
-
-		*prevp = new;
-		prevp = &new->child;
-
-		new += 2;
-	}
-	*prevp = table;
-	header->ctl_table_arg = table;
-
-	INIT_LIST_HEAD(&header->ctl_entry);
-	header->used = 0;
-	header->unregistering = NULL;
-	header->root = root;
-	sysctl_set_parent(NULL, header->ctl_table);
-	header->count = 1;
-#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
-	if (sysctl_check_table(namespaces, header->ctl_table)) {
-		kfree(header);
+	header->parent = sysctl_mkdirs(&root_table_header, group, path, nr_dirs);
+	if (!header->parent) {
+		kmem_cache_free(sysctl_header_cachep, header);
 		return NULL;
 	}
+
+	header->ctl_table_arg = table;
+	header->header_refs = 1;
+
+	sysctl_write_lock_head(header->parent);
+
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+	failed_duplicate_check = sysctl_check_duplicates(header);
 #endif
-	spin_lock(&sysctl_lock);
-	header->set = lookup_header_set(root, namespaces);
-	header->attached_by = header->ctl_table;
-	header->attached_to = root_table;
-	header->parent = &root_table_header;
-	for (set = header->set; set; set = set->parent) {
-		struct ctl_table_header *p;
-		list_for_each_entry(p, &set->list, ctl_entry) {
-			if (p->unregistering)
-				continue;
-			try_attach(p, header);
-		}
+	if (!failed_duplicate_check)
+		list_add_tail(&header->ctl_entry, &header->parent->ctl_tables);
+
+	sysctl_write_unlock_head(header->parent);
+
+	if (failed_duplicate_check) {
+		unregister_sysctl_table(header);
+		return NULL;
 	}
-	header->parent->count++;
-	list_add_tail(&header->ctl_entry, &header->set->list);
-	spin_unlock(&sysctl_lock);
 
 	return header;
 }
@@ -1932,57 +2051,67 @@ struct ctl_table_header *__register_sysctl_paths(
 struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table)
 {
-	return __register_sysctl_paths(&sysctl_table_root, current->nsproxy,
-					path, table);
+	return __register_sysctl_paths(&root_table_group, path, table);
 }
 
 /**
  * unregister_sysctl_table - unregister a sysctl table hierarchy
- * @header: the header returned from __register_sysctl_paths
+ * @h: the header returned from __register_sysctl_paths
  *
  * Unregisters the sysctl table and all children. proc entries may not
  * actually be removed until they are no longer used by anyone.
  */
-void unregister_sysctl_table(struct ctl_table_header * header)
+void unregister_sysctl_table(struct ctl_table_header *header)
 {
 	might_sleep();
 
-	if (header == NULL)
-		return;
+	while(header) {
+		struct ctl_table_header *parent = header->parent;
 
-	spin_lock(&sysctl_lock);
-	start_unregistering(header);
-	if (!--header->parent->count) {
-		WARN_ON(1);
-		call_rcu(&header->parent->rcu, free_head);
+		/* ctl_entry is a member of the parent's ctl_tables or
+		 * ctl_subdirs lists which are protected by the
+		 * parent's write lock. */
+		sysctl_write_lock_head(parent);
+
+		/* the three counters (header_refs, proc_inode_refs and
+		 * used) are protected by the spin lock */
+
+		spin_lock(&sysctl_lock);
+		if (!--header->header_refs) {
+			start_unregistering(header);
+			list_del_init(&header->ctl_entry);
+			if (!header->proc_inode_refs)
+				call_rcu(&header->rcu, free_head);
+		}
+		spin_unlock(&sysctl_lock);
+
+		sysctl_write_unlock_head(parent);
+		header = parent;
 	}
-	if (!--header->count)
-		call_rcu(&header->rcu, free_head);
-	spin_unlock(&sysctl_lock);
 }
 
-int sysctl_is_seen(struct ctl_table_header *p)
+int sysctl_is_seen(struct ctl_table_header *head)
 {
-	struct ctl_table_set *set = p->set;
-	int res;
+	struct ctl_table_group *group = head->ctl_group;
+	int ret;
 	spin_lock(&sysctl_lock);
-	if (p->unregistering)
-		res = 0;
-	else if (!set->is_seen)
-		res = 1;
+	if (head->unregistering)
+		ret = 0;
+	else if (!group->ctl_ops->is_seen)
+		ret = 1;
 	else
-		res = set->is_seen(set);
+		ret = group->ctl_ops->is_seen(group);
 	spin_unlock(&sysctl_lock);
-	return res;
+	return ret;
 }
-
-void setup_sysctl_set(struct ctl_table_set *p,
-	struct ctl_table_set *parent,
-	int (*is_seen)(struct ctl_table_set *))
+void sysctl_init_group(struct ctl_table_group *group,
+		       const struct ctl_table_group_ops *ops,
+		       int has_netns_corresp)
 {
-	INIT_LIST_HEAD(&p->list);
-	p->parent = parent ? parent : &sysctl_table_root.default_set;
-	p->is_seen = is_seen;
+	group->ctl_ops = ops;
+	group->has_netns_corresp = has_netns_corresp;
+	if (has_netns_corresp)
+		INIT_LIST_HEAD(&group->corresp_list);
 }
 
 #else /* !CONFIG_SYSCTL */
@@ -1996,15 +2125,14 @@ void unregister_sysctl_table(struct ctl_table_header * table)
 {
 }
 
-void setup_sysctl_set(struct ctl_table_set *p,
-	struct ctl_table_set *parent,
-	int (*is_seen)(struct ctl_table_set *))
+void sysctl_init_group(struct ctl_table_group *group,
+		       const struct ctl_table_group_ops *ops,
+		       int has_netns_corresp)
 {
 }
 
-void sysctl_head_put(struct ctl_table_header *head)
-{
-}
+void sysctl_proc_inode_get(struct ctl_table_header *head) { }
+void sysctl_proc_inode_put(struct ctl_table_header *head) { }
 
 #endif /* CONFIG_SYSCTL */
 
