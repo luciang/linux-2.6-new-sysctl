@@ -100,8 +100,9 @@ static int __sysctl_check_table(struct nsproxy *namespaces,
 	for (; table->procname; table++) {
 		fail = NULL;
 
-		if (table->parent) {
-			if (!table->parent->procname)
+
+		if (depth != 0) { /* has parent */
+			if (!parents[depth - 1]->procname)
 				SET_FAIL("Parent without procname");
 		}
 		if (table->child) {
