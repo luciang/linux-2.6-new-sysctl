@@ -117,7 +117,7 @@ EXPORT_SYMBOL_GPL(register_net_sysctl_table_pathdata);
 struct ctl_table_header *register_net_sysctl_table(struct net *net,
 	const struct ctl_path *path, struct ctl_table *table)
 {
-	return register_net_sysctl_table_pathdata(net, path, table, NULL);
+	return register_net_sysctl_table_pathdata(net, path, table, net);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table);
 
@@ -135,3 +135,62 @@ void unregister_net_sysctl_table(struct ctl_table_header *header)
 	unregister_sysctl_table(header);
 }
 EXPORT_SYMBOL_GPL(unregister_net_sysctl_table);
+
+
+
+
+static int net_proc_handler(ctl_table *ctl, int write,
+			    void __user *buffer,
+			    size_t *lenp, loff_t *ppos,
+			    struct file *filp,
+			    proc_handler *proc_handler)
+{
+	/* @ctl is shared between network namespaces, but the data
+	 * that must be accessed by @proc_handler depends on the
+	 * network namespace.
+	 *
+	 * This handler must be used only for ctl_tables shared
+	 * between netns but for which the 'data' field is an offset
+	 * inside the 'struct net' corresponding to the netns.
+	 *
+	 * The 'struct net*' is stored in the parent ctl_table's extra2.
+	 */
+	struct inode *parent_inode = filp->f_path.dentry->d_parent->d_inode;
+	struct ctl_table *parent_table = PROC_I(parent_inode)->sysctl_entry;
+	struct net *net = parent_table->extra2;
+	struct ctl_table tmp_ctl = *ctl;
+
+	/* 'data' must have been initialized by something like
+	 *        ctl->data = &init_net.field1.field2;
+	 * the adjustments bellow evaluate to:
+	 *    tmp_ctl->data = &net->field1.field2
+	 */
+	tmp_ctl.data += (char *)net - (char *)&init_net;
+
+	return proc_handler(&tmp_ctl, write, buffer, lenp, ppos);
+}
+
+int net_proc_dointvec(struct ctl_table *table, int write,
+		      void __user *buffer, size_t *lenp,
+		      loff_t *ppos, struct file *filp)
+{
+	return net_proc_handler(table, write, buffer, lenp,
+				ppos, filp, proc_dointvec);
+}
+
+int net_proc_dointvec_jiffies(struct ctl_table *table, int write,
+			      void __user *buffer, size_t *lenp,
+			      loff_t *ppos, struct file *filp)
+{
+	return net_proc_handler(table, write, buffer, lenp,
+				ppos, filp, proc_dointvec_jiffies);
+}
+
+
+int net_proc_dointvec_ms_jiffies(struct ctl_table *table, int write,
+				 void __user *buffer, size_t *lenp,
+				 loff_t *ppos, struct file *filp)
+{
+	return net_proc_handler(table, write, buffer, lenp,
+				ppos, filp, proc_dointvec_ms_jiffies);
+}
