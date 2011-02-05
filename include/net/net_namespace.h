@@ -278,4 +278,17 @@ extern struct ctl_table_header *register_net_sysctl_rotable(
 	const struct ctl_path *path, struct ctl_table *table);
 extern void unregister_net_sysctl_table(struct ctl_table_header *header);
 
+
+struct file;
+int net_proc_dointvec(struct ctl_table *table, int write,
+		      void __user *buffer, size_t *lenp,
+		      loff_t *ppos, struct file *filp);
+int net_proc_dointvec_jiffies(struct ctl_table *table, int write,
+			      void __user *buffer, size_t *lenp,
+			      loff_t *ppos, struct file *filp);
+int net_proc_dointvec_ms_jiffies(struct ctl_table *table, int write,
+				 void __user *buffer, size_t *lenp,
+				 loff_t *ppos, struct file *filp);
+
+
 #endif /* __NET_NET_NAMESPACE_H */
