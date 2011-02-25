@@ -110,7 +110,7 @@ struct ctl_table_header *register_net_sysctl_table(struct net *net,
 	namespaces = *current->nsproxy;
 	namespaces.net_ns = net;
 	return __register_sysctl_paths(&net_sysctl_root, &namespaces, path,
-				       table, NULL);
+				       table, net);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table);
 
