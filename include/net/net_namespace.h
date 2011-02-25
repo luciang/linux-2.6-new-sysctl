@@ -278,4 +278,37 @@ extern struct ctl_table_header *register_net_sysctl_rotable(
 	const struct ctl_path *path, struct ctl_table *table);
 extern void unregister_net_sysctl_table(struct ctl_table_header *header);
 
+
+
+/*
+ * Use these handlers when you want to change a netns dependant
+ * variable. The following restrictions apply:
+ *
+ * - these handlers must receive as cookie a 'struct net*'
+ *
+ * - the data field of ctl_table* must be at a constant offset from
+ *   the init_net structure. e.g.: &init_net.member1.member2..memberN
+ *
+ * - these handlers will call their equivalent handler with a
+ *   ctl_table with data of the form: net->member1.member2..memberN
+ */
+extern int netns_proc_dostring(struct ctl_table *,
+		int, void __user *, size_t *, loff_t *, void *net);
+extern int netns_proc_dointvec(struct ctl_table *, int,
+		void __user *, size_t *, loff_t *, void *net);
+extern int netns_proc_dointvec_minmax(struct ctl_table *, int,
+		void __user *, size_t *, loff_t *, void *net);
+extern int netns_proc_dointvec_jiffies(struct ctl_table *, int,
+		void __user *, size_t *, loff_t *, void *net);
+extern int netns_proc_dointvec_userhz_jiffies(struct ctl_table *, int,
+		void __user *, size_t *, loff_t *, void *net);
+extern int netns_proc_dointvec_ms_jiffies(struct ctl_table *, int,
+		void __user *, size_t *, loff_t *, void *net);
+extern int netns_proc_doulongvec_minmax(struct ctl_table *, int,
+		void __user *, size_t *, loff_t *, void *net);
+extern int netns_proc_doulongvec_ms_jiffies_minmax(struct ctl_table *table, int,
+		void __user *, size_t *, loff_t *, void *net);
+extern int netns_proc_do_large_bitmap(struct ctl_table *, int,
+		void __user *, size_t *, loff_t *, void *net);
+
 #endif /* __NET_NET_NAMESPACE_H */

@@ -127,3 +127,25 @@ void unregister_net_sysctl_table(struct ctl_table_header *header)
 	unregister_sysctl_table(header);
 }
 EXPORT_SYMBOL_GPL(unregister_net_sysctl_table);
+
+
+
+#define EXPORT_NETNS_PROC_HANDLER(handler)				\
+	int netns_##handler(struct ctl_table *table, int write,		\
+			    void __user *buffer, size_t *lenp,		\
+			    loff_t *ppos, void *net)			\
+	{								\
+		struct ctl_table t = *table;				\
+		t.data += (char *)net - (char *)&init_net;		\
+		return handler(&t, write, buffer, lenp, ppos, NULL);	\
+	}								\
+	EXPORT_SYMBOL_GPL(netns_##handler);
+
+EXPORT_NETNS_PROC_HANDLER(proc_dointvec);
+EXPORT_NETNS_PROC_HANDLER(proc_dointvec_minmax);
+EXPORT_NETNS_PROC_HANDLER(proc_dointvec_jiffies);
+EXPORT_NETNS_PROC_HANDLER(proc_dointvec_userhz_jiffies);
+EXPORT_NETNS_PROC_HANDLER(proc_dointvec_ms_jiffies);
+EXPORT_NETNS_PROC_HANDLER(proc_doulongvec_minmax)
+EXPORT_NETNS_PROC_HANDLER(proc_doulongvec_ms_jiffies_minmax);
+EXPORT_NETNS_PROC_HANDLER(proc_do_large_bitmap);
