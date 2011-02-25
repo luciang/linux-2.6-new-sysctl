@@ -3015,13 +3015,12 @@ static int ipv4_sysctl_rtcache_flush(ctl_table *__ctl, int write,
 	if (write) {
 		int flush_delay;
 		ctl_table ctl;
-		struct net *net;
+		struct net *net = (struct net *) cookie;
 
 		memcpy(&ctl, __ctl, sizeof(ctl));
 		ctl.data = &flush_delay;
 		proc_dointvec(&ctl, write, buffer, lenp, ppos, NULL);
 
-		net = (struct net *)__ctl->extra1;
 		rt_cache_flush(net, flush_delay);
 		return 0;
 	}
@@ -3176,37 +3175,16 @@ static __net_initdata struct ctl_path ipv4_route_path[] = {
 
 static __net_init int sysctl_route_net_init(struct net *net)
 {
-	struct ctl_table *tbl;
-
-	tbl = ipv4_route_flush_table;
-	if (!net_eq(net, &init_net)) {
-		tbl = kmemdup(tbl, sizeof(ipv4_route_flush_table), GFP_KERNEL);
-		if (tbl == NULL)
-			goto err_dup;
-	}
-	tbl[0].extra1 = net;
-
-	net->ipv4.route_hdr =
-		register_net_sysctl_table(net, ipv4_route_path, tbl);
+	net->ipv4.route_hdr = register_net_sysctl_table(net,
+				ipv4_route_path, ipv4_route_flush_table);
 	if (net->ipv4.route_hdr == NULL)
-		goto err_reg;
+		return -ENOMEM;
 	return 0;
-
-err_reg:
-	if (tbl != ipv4_route_flush_table)
-		kfree(tbl);
-err_dup:
-	return -ENOMEM;
 }
 
 static __net_exit void sysctl_route_net_exit(struct net *net)
 {
-	struct ctl_table *tbl;
-
-	tbl = net->ipv4.route_hdr->ctl_table_arg;
 	unregister_net_sysctl_table(net->ipv4.route_hdr);
-	BUG_ON(tbl == ipv4_route_flush_table);
-	kfree(tbl);
 }
 
 static __net_initdata struct pernet_operations sysctl_route_ops = {
