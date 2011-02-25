@@ -65,7 +65,7 @@ static struct notifier_block call_home_panic_nb = {
 
 static int proc_handler_callhome(struct ctl_table *ctl, int write,
 				 void __user *buffer, size_t *count,
-				 loff_t *ppos)
+				 loff_t *ppos, void *cookie)
 {
 	unsigned long val;
 	int len, rc;

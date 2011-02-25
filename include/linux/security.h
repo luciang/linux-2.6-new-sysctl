@@ -144,7 +144,8 @@ static inline unsigned long round_hint_to_min(unsigned long hint)
 	return hint;
 }
 extern int mmap_min_addr_handler(struct ctl_table *table, int write,
-				 void __user *buffer, size_t *lenp, loff_t *ppos);
+				 void __user *buffer, size_t *lenp,
+				 loff_t *ppos, void *cookie);
 #endif
 
 #ifdef CONFIG_SECURITY

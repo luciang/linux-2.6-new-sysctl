@@ -140,10 +140,10 @@ static int get_nr_dentry(void)
 }
 
 int proc_nr_dentry(ctl_table *table, int write, void __user *buffer,
-		   size_t *lenp, loff_t *ppos)
+		   size_t *lenp, loff_t *ppos, void *cookie)
 {
 	dentry_stat.nr_dentry = get_nr_dentry();
-	return proc_dointvec(table, write, buffer, lenp, ppos);
+	return proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 }
 #endif
 

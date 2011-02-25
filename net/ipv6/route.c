@@ -2593,8 +2593,8 @@ static const struct file_operations rt6_stats_seq_fops = {
 #ifdef CONFIG_SYSCTL
 
 static
-int ipv6_sysctl_rtcache_flush(ctl_table *ctl, int write,
-			      void __user *buffer, size_t *lenp, loff_t *ppos)
+int ipv6_sysctl_rtcache_flush(ctl_table *ctl, int write, void __user *buffer,
+			      size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct net *net;
 	int delay;
@@ -2603,7 +2603,7 @@ int ipv6_sysctl_rtcache_flush(ctl_table *ctl, int write,
 
 	net = (struct net *)ctl->extra1;
 	delay = net->ipv6.sysctl.flush_delay;
-	proc_dointvec(ctl, write, buffer, lenp, ppos);
+	proc_dointvec(ctl, write, buffer, lenp, ppos, NULL);
 	fib6_run_gc(delay <= 0 ? ~0UL : (unsigned long)delay, net);
 	return 0;
 }

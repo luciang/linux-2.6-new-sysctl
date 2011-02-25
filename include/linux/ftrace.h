@@ -25,7 +25,7 @@ extern int ftrace_enabled;
 extern int
 ftrace_enable_sysctl(struct ctl_table *table, int write,
 		     void __user *buffer, size_t *lenp,
-		     loff_t *ppos);
+		     loff_t *ppos, void *cookie);
 
 typedef void (*ftrace_func_t)(unsigned long ip, unsigned long parent_ip);
 
@@ -104,7 +104,7 @@ extern int stack_tracer_enabled;
 int
 stack_trace_sysctl(struct ctl_table *table, int write,
 		   void __user *buffer, size_t *lenp,
-		   loff_t *ppos);
+		   loff_t *ppos, void *cookie);
 #endif
 
 struct ftrace_func_command {

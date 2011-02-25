@@ -159,37 +159,34 @@ static void update_completion_period(void)
 }
 
 int dirty_background_ratio_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos)
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int ret;
 
-	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
+	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos, NULL);
 	if (ret == 0 && write)
 		dirty_background_bytes = 0;
 	return ret;
 }
 
 int dirty_background_bytes_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos)
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int ret;
 
-	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
+	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos, NULL);
 	if (ret == 0 && write)
 		dirty_background_ratio = 0;
 	return ret;
 }
 
 int dirty_ratio_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos)
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int old_ratio = vm_dirty_ratio;
 	int ret;
 
-	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
+	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos, NULL);
 	if (ret == 0 && write && vm_dirty_ratio != old_ratio) {
 		update_completion_period();
 		vm_dirty_bytes = 0;
@@ -199,13 +196,12 @@ int dirty_ratio_handler(struct ctl_table *table, int write,
 
 
 int dirty_bytes_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos)
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie)
 {
 	unsigned long old_bytes = vm_dirty_bytes;
 	int ret;
 
-	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
+	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos, NULL);
 	if (ret == 0 && write && vm_dirty_bytes != old_bytes) {
 		update_completion_period();
 		vm_dirty_ratio = 0;
@@ -684,9 +680,9 @@ void throttle_vm_writeout(gfp_t gfp_mask)
  * sysctl handler for /proc/sys/vm/dirty_writeback_centisecs
  */
 int dirty_writeback_centisecs_handler(ctl_table *table, int write,
-	void __user *buffer, size_t *length, loff_t *ppos)
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie)
 {
-	proc_dointvec(table, write, buffer, length, ppos);
+	proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 	bdi_arm_supers_timer();
 	return 0;
 }

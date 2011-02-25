@@ -39,12 +39,12 @@
 
 
 /* And the same for proc */
-int proc_dolasatstring(ctl_table *table, int write,
-		       void *buffer, size_t *lenp, loff_t *ppos)
+int proc_dolasatstring(ctl_table *table, int write, void *buffer,
+		       size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int r;
 
-	r = proc_dostring(table, write, buffer, lenp, ppos);
+	r = proc_dostring(table, write, buffer, lenp, ppos, NULL);
 	if ((!write) || r)
 		return r;
 
@@ -54,12 +54,12 @@ int proc_dolasatstring(ctl_table *table, int write,
 }
 
 /* proc function to write EEPROM after changing int entry */
-int proc_dolasatint(ctl_table *table, int write,
-		       void *buffer, size_t *lenp, loff_t *ppos)
+int proc_dolasatint(ctl_table *table, int write, void *buffer,
+		    size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int r;
 
-	r = proc_dointvec(table, write, buffer, lenp, ppos);
+	r = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 	if ((!write) || r)
 		return r;
 
@@ -72,8 +72,8 @@ int proc_dolasatint(ctl_table *table, int write,
 static int rtctmp;
 
 /* proc function to read/write RealTime Clock */
-int proc_dolasatrtc(ctl_table *table, int write,
-		       void *buffer, size_t *lenp, loff_t *ppos)
+int proc_dolasatrtc(ctl_table *table, int write, void *buffer,
+		    size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct timespec ts;
 	int r;
@@ -85,7 +85,7 @@ int proc_dolasatrtc(ctl_table *table, int write,
 		if (rtctmp < 0)
 			rtctmp = 0;
 	}
-	r = proc_dointvec(table, write, buffer, lenp, ppos);
+	r = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 	if (r)
 		return r;
 
@@ -97,8 +97,8 @@ int proc_dolasatrtc(ctl_table *table, int write,
 #endif
 
 #ifdef CONFIG_INET
-int proc_lasat_ip(ctl_table *table, int write,
-		       void *buffer, size_t *lenp, loff_t *ppos)
+int proc_lasat_ip(ctl_table *table, int write, void *buffer,
+		    size_t *lenp, loff_t *ppos, void *cookie)
 {
 	unsigned int ip;
 	char *p, c;
@@ -157,12 +157,12 @@ int proc_lasat_ip(ctl_table *table, int write,
 }
 #endif
 
-int proc_lasat_prid(ctl_table *table, int write,
-		       void *buffer, size_t *lenp, loff_t *ppos)
+int proc_lasat_prid(ctl_table *table, int write, void *buffer,
+		    size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int r;
 
-	r = proc_dointvec(table, write, buffer, lenp, ppos);
+	r = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 	if (r < 0)
 		return r;
 	if (write) {

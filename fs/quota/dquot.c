@@ -2517,14 +2517,15 @@ const struct quotactl_ops dquot_quotactl_ops = {
 EXPORT_SYMBOL(dquot_quotactl_ops);
 
 static int do_proc_dqstats(struct ctl_table *table, int write,
-		     void __user *buffer, size_t *lenp, loff_t *ppos)
+			   void __user *buffer, size_t *lenp,
+			   loff_t *ppos, void *cookie)
 {
 	unsigned int type = (int *)table->data - dqstats.stat;
 
 	/* Update global table */
 	dqstats.stat[type] =
 			percpu_counter_sum_positive(&dqstats.counter[type]);
-	return proc_dointvec(table, write, buffer, lenp, ppos);
+	return proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 }
 
 static ctl_table fs_dqstats_table[] = {

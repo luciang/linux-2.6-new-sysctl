@@ -47,11 +47,12 @@ static void drop_slab(void)
 }
 
 int drop_caches_sysctl_handler(ctl_table *table, int write,
-	void __user *buffer, size_t *length, loff_t *ppos)
+			       void __user *buffer, size_t *length,
+			       loff_t *ppos, void *cookie)
 {
 	int ret;
 
-	ret = proc_dointvec_minmax(table, write, buffer, length, ppos);
+	ret = proc_dointvec_minmax(table, write, buffer, length, ppos, NULL);
 	if (ret)
 		return ret;
 	if (write) {

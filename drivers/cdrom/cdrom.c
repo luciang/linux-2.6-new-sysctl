@@ -3469,8 +3469,8 @@ static int cdrom_print_info(const char *header, int val, char *info,
 	return 0;
 }
 
-static int cdrom_sysctl_info(ctl_table *ctl, int write,
-                           void __user *buffer, size_t *lenp, loff_t *ppos)
+static int cdrom_sysctl_info(ctl_table *ctl, int write, void __user *buffer,
+			     size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int pos;
 	char *info = cdrom_sysctl_settings.info;
@@ -3546,7 +3546,7 @@ static int cdrom_sysctl_info(ctl_table *ctl, int write,
 		goto done;
 doit:
 	mutex_unlock(&cdrom_mutex);
-	return proc_dostring(ctl, write, buffer, lenp, ppos);
+	return proc_dostring(ctl, write, buffer, lenp, ppos, NULL);
 done:
 	pr_info("info buffer too small\n");
 	goto doit;
@@ -3582,12 +3582,12 @@ static void cdrom_update_settings(void)
 	mutex_unlock(&cdrom_mutex);
 }
 
-static int cdrom_sysctl_handler(ctl_table *ctl, int write,
-				void __user *buffer, size_t *lenp, loff_t *ppos)
+static int cdrom_sysctl_handler(ctl_table *ctl, int write, void __user *buffer,
+				size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int ret;
 	
-	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	ret = proc_dointvec(ctl, write, buffer, lenp, ppos, NULL);
 
 	if (write) {
 	

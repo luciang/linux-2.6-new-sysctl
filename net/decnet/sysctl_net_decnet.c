@@ -132,8 +132,8 @@ static int parse_addr(__le16 *addr, char *str)
 }
 
 static int dn_node_address_handler(ctl_table *table, int write,
-				void __user *buffer,
-				size_t *lenp, loff_t *ppos)
+				   void __user *buffer, size_t *lenp,
+				   loff_t *ppos, void *cookie)
 {
 	char addr[DN_ASCBUF_LEN];
 	size_t len;
@@ -183,8 +183,8 @@ static int dn_node_address_handler(ctl_table *table, int write,
 }
 
 static int dn_def_dev_handler(ctl_table *table, int write,
-				void __user *buffer,
-				size_t *lenp, loff_t *ppos)
+			      void __user *buffer, size_t *lenp,
+			      loff_t *ppos, void *cookie)
 {
 	size_t len;
 	struct net_device *dev;

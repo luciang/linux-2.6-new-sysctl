@@ -1879,7 +1879,7 @@ static int hugetlb_sysctl_handler_common(bool obey_mempolicy,
 
 	table->data = &tmp;
 	table->maxlen = sizeof(unsigned long);
-	ret = proc_doulongvec_minmax(table, write, buffer, length, ppos);
+	ret = proc_doulongvec_minmax(table, write, buffer, length, ppos, NULL);
 	if (ret)
 		goto out;
 
@@ -1901,27 +1901,29 @@ out:
 }
 
 int hugetlb_sysctl_handler(struct ctl_table *table, int write,
-			  void __user *buffer, size_t *length, loff_t *ppos)
+			   void __user *buffer, size_t *length,
+			   loff_t *ppos, void *cookie)
 {
 
 	return hugetlb_sysctl_handler_common(false, table, write,
-							buffer, length, ppos);
+					     buffer, length, ppos);
 }
 
 #ifdef CONFIG_NUMA
 int hugetlb_mempolicy_sysctl_handler(struct ctl_table *table, int write,
-			  void __user *buffer, size_t *length, loff_t *ppos)
+				     void __user *buffer, size_t *length,
+				     loff_t *ppos, void *cookie)
 {
 	return hugetlb_sysctl_handler_common(true, table, write,
-							buffer, length, ppos);
+					     buffer, length, ppos);
 }
 #endif /* CONFIG_NUMA */
 
 int hugetlb_treat_movable_handler(struct ctl_table *table, int write,
-			void __user *buffer,
-			size_t *length, loff_t *ppos)
+				  void __user *buffer, size_t *length,
+				  loff_t *ppos, void *cookie)
 {
-	proc_dointvec(table, write, buffer, length, ppos);
+	proc_dointvec(table, write, buffer, length, ppos, NULL);
 	if (hugepages_treat_as_movable)
 		htlb_alloc_mask = GFP_HIGHUSER_MOVABLE;
 	else
@@ -1930,8 +1932,8 @@ int hugetlb_treat_movable_handler(struct ctl_table *table, int write,
 }
 
 int hugetlb_overcommit_handler(struct ctl_table *table, int write,
-			void __user *buffer,
-			size_t *length, loff_t *ppos)
+			       void __user *buffer, size_t *length,
+			       loff_t *ppos, void *cookie)
 {
 	struct hstate *h = &default_hstate;
 	unsigned long tmp;
@@ -1944,7 +1946,7 @@ int hugetlb_overcommit_handler(struct ctl_table *table, int write,
 
 	table->data = &tmp;
 	table->maxlen = sizeof(unsigned long);
-	ret = proc_doulongvec_minmax(table, write, buffer, length, ppos);
+	ret = proc_doulongvec_minmax(table, write, buffer, length, ppos, NULL);
 	if (ret)
 		goto out;
 

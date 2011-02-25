@@ -56,8 +56,8 @@ rpc_unregister_sysctl(void)
 	}
 }
 
-static int proc_do_xprt(ctl_table *table, int write,
-			void __user *buffer, size_t *lenp, loff_t *ppos)
+static int proc_do_xprt(ctl_table *table, int write, void __user *buffer,
+			size_t *lenp, loff_t *ppos, void *cookie)
 {
 	char tmpbuf[256];
 	size_t len;
@@ -70,9 +70,8 @@ static int proc_do_xprt(ctl_table *table, int write,
 	return simple_read_from_buffer(buffer, *lenp, ppos, tmpbuf, len);
 }
 
-static int
-proc_dodebug(ctl_table *table, int write,
-				void __user *buffer, size_t *lenp, loff_t *ppos)
+static int proc_dodebug(ctl_table *table, int write, void __user *buffer,
+			size_t *lenp, loff_t *ppos, void *cookie)
 {
 	char		tmpbuf[20], c, *s;
 	char __user *p;

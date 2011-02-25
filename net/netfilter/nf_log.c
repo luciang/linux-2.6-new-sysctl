@@ -226,7 +226,8 @@ static struct ctl_table nf_log_sysctl_table[NFPROTO_NUMPROTO+1];
 static struct ctl_table_header *nf_log_dir_header;
 
 static int nf_log_proc_dostring(ctl_table *table, int write,
-			 void __user *buffer, size_t *lenp, loff_t *ppos)
+				void __user *buffer, size_t *lenp,
+				loff_t *ppos, void *cookie)
 {
 	const struct nf_logger *logger;
 	char buf[NFLOGGER_NAME_LEN];
@@ -260,7 +261,7 @@ static int nf_log_proc_dostring(ctl_table *table, int write,
 			table->data = "NONE";
 		else
 			table->data = logger->name;
-		r = proc_dostring(table, write, buffer, lenp, ppos);
+		r = proc_dostring(table, write, buffer, lenp, ppos, NULL);
 		mutex_unlock(&nf_log_mutex);
 	}
 

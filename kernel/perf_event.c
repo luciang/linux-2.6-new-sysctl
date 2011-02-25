@@ -158,9 +158,9 @@ static int max_samples_per_tick __read_mostly =
 
 int perf_proc_update_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
-		loff_t *ppos)
+		loff_t *ppos, void *cookie)
 {
-	int ret = proc_dointvec(table, write, buffer, lenp, ppos);
+	int ret = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 
 	if (ret || !write)
 		return ret;

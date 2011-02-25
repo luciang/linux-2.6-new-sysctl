@@ -183,7 +183,7 @@ static void mac_hid_stop_emulation(void)
 
 static int mac_hid_toggle_emumouse(ctl_table *table, int write,
 				   void __user *buffer, size_t *lenp,
-				   loff_t *ppos)
+				   loff_t *ppos, void *cookie)
 {
 	int *valp = table->data;
 	int old_val = *valp;
@@ -193,7 +193,7 @@ static int mac_hid_toggle_emumouse(ctl_table *table, int write,
 	if (rc)
 		return rc;
 
-	rc = proc_dointvec(table, write, buffer, lenp, ppos);
+	rc = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 
 	if (rc == 0 && write && *valp != old_val) {
 		if (*valp == 1)

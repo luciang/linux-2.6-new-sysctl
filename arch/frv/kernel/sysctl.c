@@ -48,7 +48,7 @@ static void frv_change_dcache_mode(unsigned long newmode)
  */
 static int procctl_frv_cachemode(ctl_table *table, int write,
 				 void __user *buffer, size_t *lenp,
-				 loff_t *ppos)
+				 loff_t *ppos, void *cookie)
 {
 	unsigned long hsr0;
 	char buff[8];
@@ -123,7 +123,7 @@ static int procctl_frv_cachemode(ctl_table *table, int write,
 #ifdef CONFIG_MMU
 static int procctl_frv_pin_cxnr(ctl_table *table, int write,
 				void __user *buffer, size_t *lenp,
-				loff_t *ppos)
+				loff_t *ppos, void *cookie)
 {
 	pid_t pid;
 	char buff[16], *p;

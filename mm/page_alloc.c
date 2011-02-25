@@ -2721,8 +2721,7 @@ early_param("numa_zonelist_order", setup_numa_zonelist_order);
  * sysctl handler for numa_zonelist_order
  */
 int numa_zonelist_order_handler(ctl_table *table, int write,
-		void __user *buffer, size_t *length,
-		loff_t *ppos)
+	void __user *buffer, size_t *length, loff_t *ppos, void *cookie)
 {
 	char saved_string[NUMA_ZONELIST_ORDER_LEN];
 	int ret;
@@ -2731,7 +2730,7 @@ int numa_zonelist_order_handler(ctl_table *table, int write,
 	mutex_lock(&zl_order_mutex);
 	if (write)
 		strcpy(saved_string, (char*)table->data);
-	ret = proc_dostring(table, write, buffer, length, ppos);
+	ret = proc_dostring(table, write, buffer, length, ppos, NULL);
 	if (ret)
 		goto out;
 	if (write) {
@@ -5142,9 +5141,9 @@ module_init(init_per_zone_wmark_min)
  *	changes.
  */
 int min_free_kbytes_sysctl_handler(ctl_table *table, int write, 
-	void __user *buffer, size_t *length, loff_t *ppos)
+	void __user *buffer, size_t *length, loff_t *ppos, void *cookie)
 {
-	proc_dointvec(table, write, buffer, length, ppos);
+	proc_dointvec(table, write, buffer, length, ppos, NULL);
 	if (write)
 		setup_per_zone_wmarks();
 	return 0;
@@ -5152,12 +5151,12 @@ int min_free_kbytes_sysctl_handler(ctl_table *table, int write,
 
 #ifdef CONFIG_NUMA
 int sysctl_min_unmapped_ratio_sysctl_handler(ctl_table *table, int write,
-	void __user *buffer, size_t *length, loff_t *ppos)
+	void __user *buffer, size_t *length, loff_t *ppos, void *cookie)
 {
 	struct zone *zone;
 	int rc;
 
-	rc = proc_dointvec_minmax(table, write, buffer, length, ppos);
+	rc = proc_dointvec_minmax(table, write, buffer, length, ppos, NULL);
 	if (rc)
 		return rc;
 
@@ -5168,12 +5167,12 @@ int sysctl_min_unmapped_ratio_sysctl_handler(ctl_table *table, int write,
 }
 
 int sysctl_min_slab_ratio_sysctl_handler(ctl_table *table, int write,
-	void __user *buffer, size_t *length, loff_t *ppos)
+	void __user *buffer, size_t *length, loff_t *ppos, void *cookie)
 {
 	struct zone *zone;
 	int rc;
 
-	rc = proc_dointvec_minmax(table, write, buffer, length, ppos);
+	rc = proc_dointvec_minmax(table, write, buffer, length, ppos, NULL);
 	if (rc)
 		return rc;
 
@@ -5194,9 +5193,9 @@ int sysctl_min_slab_ratio_sysctl_handler(ctl_table *table, int write,
  * if in function of the boot time zone sizes.
  */
 int lowmem_reserve_ratio_sysctl_handler(ctl_table *table, int write,
-	void __user *buffer, size_t *length, loff_t *ppos)
+	void __user *buffer, size_t *length, loff_t *ppos, void *cookie)
 {
-	proc_dointvec_minmax(table, write, buffer, length, ppos);
+	proc_dointvec_minmax(table, write, buffer, length, ppos, NULL);
 	setup_per_zone_lowmem_reserve();
 	return 0;
 }
@@ -5208,13 +5207,13 @@ int lowmem_reserve_ratio_sysctl_handler(ctl_table *table, int write,
  */
 
 int percpu_pagelist_fraction_sysctl_handler(ctl_table *table, int write,
-	void __user *buffer, size_t *length, loff_t *ppos)
+	void __user *buffer, size_t *length, loff_t *ppos, void *cookie)
 {
 	struct zone *zone;
 	unsigned int cpu;
 	int ret;
 
-	ret = proc_dointvec_minmax(table, write, buffer, length, ppos);
+	ret = proc_dointvec_minmax(table, write, buffer, length, ppos, NULL);
 	if (!write || (ret == -EINVAL))
 		return ret;
 	for_each_populated_zone(zone) {

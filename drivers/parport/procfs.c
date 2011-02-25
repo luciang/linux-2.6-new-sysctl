@@ -31,8 +31,8 @@
 #define PARPORT_MIN_SPINTIME_VALUE 1
 #define PARPORT_MAX_SPINTIME_VALUE 1000
 
-static int do_active_device(ctl_table *table, int write,
-		      void __user *result, size_t *lenp, loff_t *ppos)
+static int do_active_device(ctl_table *table, int write, void __user *result,
+			    size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct parport *port = (struct parport *)table->extra1;
 	char buffer[256];
@@ -68,8 +68,8 @@ static int do_active_device(ctl_table *table, int write,
 }
 
 #ifdef CONFIG_PARPORT_1284
-static int do_autoprobe(ctl_table *table, int write,
-			void __user *result, size_t *lenp, loff_t *ppos)
+static int do_autoprobe(ctl_table *table, int write, void __user *result,
+			size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct parport_device_info *info = table->extra2;
 	const char *str;
@@ -110,9 +110,9 @@ static int do_autoprobe(ctl_table *table, int write,
 }
 #endif /* IEEE1284.3 support. */
 
-static int do_hardware_base_addr (ctl_table *table, int write,
-				  void __user *result,
-				  size_t *lenp, loff_t *ppos)
+static int do_hardware_base_addr(ctl_table *table, int write,
+				 void __user *result, size_t *lenp,
+				 loff_t *ppos, void *cookie)
 {
 	struct parport *port = (struct parport *)table->extra1;
 	char buffer[20];
@@ -138,9 +138,8 @@ static int do_hardware_base_addr (ctl_table *table, int write,
 	return copy_to_user(result, buffer, len) ? -EFAULT : 0;
 }
 
-static int do_hardware_irq (ctl_table *table, int write,
-			    void __user *result,
-			    size_t *lenp, loff_t *ppos)
+static int do_hardware_irq(ctl_table *table, int write, void __user *result,
+			   size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct parport *port = (struct parport *)table->extra1;
 	char buffer[20];
@@ -166,9 +165,8 @@ static int do_hardware_irq (ctl_table *table, int write,
 	return copy_to_user(result, buffer, len) ? -EFAULT : 0;
 }
 
-static int do_hardware_dma (ctl_table *table, int write,
-			    void __user *result,
-			    size_t *lenp, loff_t *ppos)
+static int do_hardware_dma(ctl_table *table, int write, void __user *result,
+			   size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct parport *port = (struct parport *)table->extra1;
 	char buffer[20];
@@ -194,9 +192,8 @@ static int do_hardware_dma (ctl_table *table, int write,
 	return copy_to_user(result, buffer, len) ? -EFAULT : 0;
 }
 
-static int do_hardware_modes (ctl_table *table, int write,
-			      void __user *result,
-			      size_t *lenp, loff_t *ppos)
+static int do_hardware_modes(ctl_table *table, int write, void __user *result,
+			     size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct parport *port = (struct parport *)table->extra1;
 	char buffer[40];

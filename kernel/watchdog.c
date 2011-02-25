@@ -502,9 +502,10 @@ static void watchdog_disable_all_cpus(void)
  */
 
 int proc_dowatchdog_enabled(struct ctl_table *table, int write,
-		     void __user *buffer, size_t *length, loff_t *ppos)
+			    void __user *buffer, size_t *length,
+			    loff_t *ppos, void *cookie)
 {
-	proc_dointvec(table, write, buffer, length, ppos);
+	proc_dointvec(table, write, buffer, length, ppos, NULL);
 
 	if (write) {
 		if (watchdog_enabled)
@@ -516,10 +517,10 @@ int proc_dowatchdog_enabled(struct ctl_table *table, int write,
 }
 
 int proc_dowatchdog_thresh(struct ctl_table *table, int write,
-			     void __user *buffer,
-			     size_t *lenp, loff_t *ppos)
+			   void __user *buffer, size_t *lenp,
+			   loff_t *ppos, void *cookie)
 {
-	return proc_dointvec_minmax(table, write, buffer, lenp, ppos);
+	return proc_dointvec_minmax(table, write, buffer, lenp, ppos, NULL);
 }
 #endif /* CONFIG_SYSCTL */
 

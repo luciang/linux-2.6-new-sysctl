@@ -1602,8 +1602,8 @@ int in_gate_area_no_mm(unsigned long addr);
 #define in_gate_area(mm, addr) ({(void)mm; in_gate_area_no_mm(addr);})
 #endif	/* __HAVE_ARCH_GATE_AREA */
 
-int drop_caches_sysctl_handler(struct ctl_table *, int,
-					void __user *, size_t *, loff_t *);
+int drop_caches_sysctl_handler(struct ctl_table *, int, void __user *,
+			       size_t *, loff_t *, void *);
 unsigned long shrink_slab(unsigned long scanned, gfp_t gfp_mask,
 			unsigned long lru_pages);
 

@@ -3009,8 +3009,8 @@ void ip_rt_multicast_event(struct in_device *in_dev)
 
 #ifdef CONFIG_SYSCTL
 static int ipv4_sysctl_rtcache_flush(ctl_table *__ctl, int write,
-					void __user *buffer,
-					size_t *lenp, loff_t *ppos)
+				     void __user *buffer, size_t *lenp,
+				     loff_t *ppos, void *cookie)
 {
 	if (write) {
 		int flush_delay;
@@ -3019,7 +3019,7 @@ static int ipv4_sysctl_rtcache_flush(ctl_table *__ctl, int write,
 
 		memcpy(&ctl, __ctl, sizeof(ctl));
 		ctl.data = &flush_delay;
-		proc_dointvec(&ctl, write, buffer, lenp, ppos);
+		proc_dointvec(&ctl, write, buffer, lenp, ppos, NULL);
 
 		net = (struct net *)__ctl->extra1;
 		rt_cache_flush(net, flush_delay);

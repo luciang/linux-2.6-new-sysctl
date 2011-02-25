@@ -1186,11 +1186,11 @@ static inline unsigned int round_pipe_size(unsigned int size)
  * will return an error.
  */
 int pipe_proc_fn(struct ctl_table *table, int write, void __user *buf,
-		 size_t *lenp, loff_t *ppos)
+		 size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int ret;
 
-	ret = proc_dointvec_minmax(table, write, buf, lenp, ppos);
+	ret = proc_dointvec_minmax(table, write, buf, lenp, ppos, NULL);
 	if (ret < 0 || !write)
 		return ret;
 

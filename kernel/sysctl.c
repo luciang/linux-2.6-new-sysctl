@@ -165,14 +165,17 @@ extern int unaligned_dump_stack;
 
 #ifdef CONFIG_PROC_SYSCTL
 static int proc_do_cad_pid(struct ctl_table *table, int write,
-		  void __user *buffer, size_t *lenp, loff_t *ppos);
+			   void __user *buffer, size_t *lenp,
+			   loff_t *ppos, void *cookie);
 static int proc_taint(struct ctl_table *table, int write,
-			       void __user *buffer, size_t *lenp, loff_t *ppos);
+		      void __user *buffer, size_t *lenp,
+		      loff_t *ppos, void *cookie);
 #endif
 
 #ifdef CONFIG_PRINTK
 static int proc_dmesg_restrict(struct ctl_table *table, int write,
-				void __user *buffer, size_t *lenp, loff_t *ppos);
+			       void __user *buffer, size_t *lenp,
+			       loff_t *ppos, void *cookie);
 #endif
 
 #ifdef CONFIG_MAGIC_SYSRQ
@@ -181,11 +184,11 @@ static int __sysrq_enabled = SYSRQ_DEFAULT_ENABLE;
 
 static int sysrq_sysctl_handler(ctl_table *table, int write,
 				void __user *buffer, size_t *lenp,
-				loff_t *ppos)
+				loff_t *ppos, void *cookie)
 {
 	int error;
 
-	error = proc_dointvec(table, write, buffer, lenp, ppos);
+	error = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 	if (error)
 		return error;
 
@@ -2089,6 +2092,7 @@ static int _proc_do_string(void* data, int maxlen, int write,
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
  * @ppos: file position
+ * @cookie: ignored by this handler
  *
  * Reads/writes a string from/to the user buffer. If the kernel
  * buffer provided is not large enough to hold the string, the
@@ -2100,7 +2104,8 @@ static int _proc_do_string(void* data, int maxlen, int write,
  * Returns 0 on success.
  */
 int proc_dostring(struct ctl_table *table, int write,
-		  void __user *buffer, size_t *lenp, loff_t *ppos)
+		  void __user *buffer, size_t *lenp,
+		  loff_t *ppos, void *cookie)
 {
 	return _proc_do_string(table->data, table->maxlen, write,
 			       buffer, lenp, ppos);
@@ -2355,6 +2360,7 @@ static int do_proc_dointvec(struct ctl_table *table, int write,
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
  * @ppos: file position
+ * @cookie: ignored by this handler
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
  * values from/to the user buffer, treated as an ASCII string. 
@@ -2362,7 +2368,8 @@ static int do_proc_dointvec(struct ctl_table *table, int write,
  * Returns 0 on success.
  */
 int proc_dointvec(struct ctl_table *table, int write,
-		     void __user *buffer, size_t *lenp, loff_t *ppos)
+		  void __user *buffer, size_t *lenp,
+		  loff_t *ppos, void *cookie)
 {
     return do_proc_dointvec(table,write,buffer,lenp,ppos,
 		    	    NULL,NULL);
@@ -2373,7 +2380,8 @@ int proc_dointvec(struct ctl_table *table, int write,
  * This means we can safely use a temporary.
  */
 static int proc_taint(struct ctl_table *table, int write,
-			       void __user *buffer, size_t *lenp, loff_t *ppos)
+		      void __user *buffer, size_t *lenp,
+		      loff_t *ppos, void *cookie)
 {
 	struct ctl_table t;
 	unsigned long tmptaint = get_taint();
@@ -2384,7 +2392,7 @@ static int proc_taint(struct ctl_table *table, int write,
 
 	t = *table;
 	t.data = &tmptaint;
-	err = proc_doulongvec_minmax(&t, write, buffer, lenp, ppos);
+	err = proc_doulongvec_minmax(&t, write, buffer, lenp, ppos, NULL);
 	if (err < 0)
 		return err;
 
@@ -2405,12 +2413,13 @@ static int proc_taint(struct ctl_table *table, int write,
 
 #ifdef CONFIG_PRINTK
 static int proc_dmesg_restrict(struct ctl_table *table, int write,
-				void __user *buffer, size_t *lenp, loff_t *ppos)
+			       void __user *buffer, size_t *lenp,
+			       loff_t *ppos, void *cookie)
 {
 	if (write && !capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	return proc_dointvec_minmax(table, write, buffer, lenp, ppos);
+	return proc_dointvec_minmax(table, write, buffer, lenp, ppos, NULL);
 }
 #endif
 
@@ -2450,6 +2459,7 @@ static int do_proc_dointvec_minmax_conv(bool *negp, unsigned long *lvalp,
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
  * @ppos: file position
+ * @cookie: ignored by this handler
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
  * values from/to the user buffer, treated as an ASCII string.
@@ -2460,7 +2470,8 @@ static int do_proc_dointvec_minmax_conv(bool *negp, unsigned long *lvalp,
  * Returns 0 on success.
  */
 int proc_dointvec_minmax(struct ctl_table *table, int write,
-		  void __user *buffer, size_t *lenp, loff_t *ppos)
+			 void __user *buffer, size_t *lenp,
+			 loff_t *ppos, void *cookie)
 {
 	struct do_proc_dointvec_minmax_conv_param param = {
 		.min = (int *) table->extra1,
@@ -2567,6 +2578,7 @@ static int do_proc_doulongvec_minmax(struct ctl_table *table, int write,
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
  * @ppos: file position
+ * @cookie: ignored by this handler
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned long) unsigned long
  * values from/to the user buffer, treated as an ASCII string.
@@ -2577,7 +2589,8 @@ static int do_proc_doulongvec_minmax(struct ctl_table *table, int write,
  * Returns 0 on success.
  */
 int proc_doulongvec_minmax(struct ctl_table *table, int write,
-			   void __user *buffer, size_t *lenp, loff_t *ppos)
+			   void __user *buffer, size_t *lenp,
+			   loff_t *ppos, void *cookie)
 {
     return do_proc_doulongvec_minmax(table, write, buffer, lenp, ppos, 1l, 1l);
 }
@@ -2589,6 +2602,7 @@ int proc_doulongvec_minmax(struct ctl_table *table, int write,
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
  * @ppos: file position
+ * @cookie: ignored by this handler
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned long) unsigned long
  * values from/to the user buffer, treated as an ASCII string. The values
@@ -2600,8 +2614,8 @@ int proc_doulongvec_minmax(struct ctl_table *table, int write,
  * Returns 0 on success.
  */
 int proc_doulongvec_ms_jiffies_minmax(struct ctl_table *table, int write,
-				      void __user *buffer,
-				      size_t *lenp, loff_t *ppos)
+				      void __user *buffer, size_t *lenp,
+				      loff_t *ppos, void *cookie)
 {
     return do_proc_doulongvec_minmax(table, write, buffer,
 				     lenp, ppos, HZ, 1000l);
@@ -2682,6 +2696,7 @@ static int do_proc_dointvec_ms_jiffies_conv(bool *negp, unsigned long *lvalp,
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
  * @ppos: file position
+ * @cookie: ignored by this handler
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
  * values from/to the user buffer, treated as an ASCII string. 
@@ -2691,7 +2706,8 @@ static int do_proc_dointvec_ms_jiffies_conv(bool *negp, unsigned long *lvalp,
  * Returns 0 on success.
  */
 int proc_dointvec_jiffies(struct ctl_table *table, int write,
-			  void __user *buffer, size_t *lenp, loff_t *ppos)
+			  void __user *buffer, size_t *lenp,
+			  loff_t *ppos, void *cookie)
 {
     return do_proc_dointvec(table,write,buffer,lenp,ppos,
 		    	    do_proc_dointvec_jiffies_conv,NULL);
@@ -2703,7 +2719,8 @@ int proc_dointvec_jiffies(struct ctl_table *table, int write,
  * @write: %TRUE if this is a write to the sysctl file
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
- * @ppos: pointer to the file position
+ * @ppos: file position
+ * @cookie: ignored by this handler
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
  * values from/to the user buffer, treated as an ASCII string. 
@@ -2713,7 +2730,8 @@ int proc_dointvec_jiffies(struct ctl_table *table, int write,
  * Returns 0 on success.
  */
 int proc_dointvec_userhz_jiffies(struct ctl_table *table, int write,
-				 void __user *buffer, size_t *lenp, loff_t *ppos)
+				 void __user *buffer, size_t *lenp,
+				 loff_t *ppos, void *cookie)
 {
     return do_proc_dointvec(table,write,buffer,lenp,ppos,
 		    	    do_proc_dointvec_userhz_jiffies_conv,NULL);
@@ -2726,7 +2744,7 @@ int proc_dointvec_userhz_jiffies(struct ctl_table *table, int write,
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
  * @ppos: file position
- * @ppos: the current position in the file
+ * @cookie: ignored by this handler
  *
  * Reads/writes up to table->maxlen/sizeof(unsigned int) integer
  * values from/to the user buffer, treated as an ASCII string. 
@@ -2736,14 +2754,16 @@ int proc_dointvec_userhz_jiffies(struct ctl_table *table, int write,
  * Returns 0 on success.
  */
 int proc_dointvec_ms_jiffies(struct ctl_table *table, int write,
-			     void __user *buffer, size_t *lenp, loff_t *ppos)
+			     void __user *buffer, size_t *lenp,
+			     loff_t *ppos, void *cookie)
 {
 	return do_proc_dointvec(table, write, buffer, lenp, ppos,
 				do_proc_dointvec_ms_jiffies_conv, NULL);
 }
 
 static int proc_do_cad_pid(struct ctl_table *table, int write,
-			   void __user *buffer, size_t *lenp, loff_t *ppos)
+			   void __user *buffer, size_t *lenp,
+			   loff_t *ppos, void *cookie)
 {
 	struct pid *new_pid;
 	pid_t tmp;
@@ -2771,6 +2791,7 @@ static int proc_do_cad_pid(struct ctl_table *table, int write,
  * @buffer: the user buffer
  * @lenp: the size of the user buffer
  * @ppos: file position
+ * @cookie: ignored by this handler
  *
  * The bitmap is stored at table->data and the bitmap length (in bits)
  * in table->maxlen.
@@ -2782,7 +2803,8 @@ static int proc_do_cad_pid(struct ctl_table *table, int write,
  * Returns 0 on success.
  */
 int proc_do_large_bitmap(struct ctl_table *table, int write,
-			 void __user *buffer, size_t *lenp, loff_t *ppos)
+			 void __user *buffer, size_t *lenp,
+			 loff_t *ppos, void *cookie)
 {
 	int err = 0;
 	bool first = 1;
@@ -2918,50 +2940,57 @@ int proc_do_large_bitmap(struct ctl_table *table, int write,
 #else /* CONFIG_PROC_SYSCTL */
 
 int proc_dostring(struct ctl_table *table, int write,
-		  void __user *buffer, size_t *lenp, loff_t *ppos)
+		  void __user *buffer, size_t *lenp,
+		  loff_t *ppos, void *cookie)
 {
 	return -ENOSYS;
 }
 
 int proc_dointvec(struct ctl_table *table, int write,
-		  void __user *buffer, size_t *lenp, loff_t *ppos)
+		  void __user *buffer, size_t *lenp,
+		  loff_t *ppos, void *cookie)
 {
 	return -ENOSYS;
 }
 
 int proc_dointvec_minmax(struct ctl_table *table, int write,
-		    void __user *buffer, size_t *lenp, loff_t *ppos)
+			 void __user *buffer, size_t *lenp,
+			 loff_t *ppos, void *cookie)
 {
 	return -ENOSYS;
 }
 
 int proc_dointvec_jiffies(struct ctl_table *table, int write,
-		    void __user *buffer, size_t *lenp, loff_t *ppos)
+			  void __user *buffer, size_t *lenp,
+			  loff_t *ppos, void *cookie)
 {
 	return -ENOSYS;
 }
 
 int proc_dointvec_userhz_jiffies(struct ctl_table *table, int write,
-		    void __user *buffer, size_t *lenp, loff_t *ppos)
+				 void __user *buffer, size_t *lenp,
+				 loff_t *ppos, void *cookie)
 {
 	return -ENOSYS;
 }
 
 int proc_dointvec_ms_jiffies(struct ctl_table *table, int write,
-			     void __user *buffer, size_t *lenp, loff_t *ppos)
+			     void __user *buffer, size_t *lenp,
+			     loff_t *ppos, void *cookie)
 {
 	return -ENOSYS;
 }
 
 int proc_doulongvec_minmax(struct ctl_table *table, int write,
-		    void __user *buffer, size_t *lenp, loff_t *ppos)
+			   void __user *buffer, size_t *lenp,
+			   loff_t *ppos, void *cookie)
 {
 	return -ENOSYS;
 }
 
 int proc_doulongvec_ms_jiffies_minmax(struct ctl_table *table, int write,
-				      void __user *buffer,
-				      size_t *lenp, loff_t *ppos)
+				      void __user *buffer, size_t *lenp,
+				      loff_t *ppos, void *cookie)
 {
     return -ENOSYS;
 }

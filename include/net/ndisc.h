@@ -137,10 +137,13 @@ extern int 			ndisc_ifinfo_sysctl_change(struct ctl_table *ctl,
 							   int write,
 							   void __user *buffer,
 							   size_t *lenp,
-							   loff_t *ppos);
+							   loff_t *ppos,
+							   void *cookie);
+
 int ndisc_ifinfo_sysctl_strategy(ctl_table *ctl,
 				 void __user *oldval, size_t __user *oldlenp,
-				 void __user *newval, size_t newlen);
+				 void __user *newval, size_t newlen,
+				 void *cookie);
 #endif
 
 extern void 			inet6_ifinfo_notify(int event,

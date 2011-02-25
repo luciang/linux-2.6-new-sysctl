@@ -158,11 +158,11 @@ int get_nr_dirty_inodes(void)
  * Handle nr_inode sysctl
  */
 #ifdef CONFIG_SYSCTL
-int proc_nr_inodes(ctl_table *table, int write,
-		   void __user *buffer, size_t *lenp, loff_t *ppos)
+int proc_nr_inodes(ctl_table *table, int write, void __user *buffer,
+		   size_t *lenp, loff_t *ppos, void *cookie)
 {
 	inodes_stat.nr_inodes = get_nr_inodes();
-	return proc_dointvec(table, write, buffer, lenp, ppos);
+	return proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 }
 #endif
 

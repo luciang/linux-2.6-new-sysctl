@@ -1227,8 +1227,8 @@ static char sysctl_bootid[16];
  * as an ASCII string in the standard UUID format.  If accesses via the
  * sysctl system call, it is returned as 16 bytes of binary data.
  */
-static int proc_do_uuid(ctl_table *table, int write,
-			void __user *buffer, size_t *lenp, loff_t *ppos)
+static int proc_do_uuid(ctl_table *table, int write, void __user *buffer,
+			size_t *lenp, loff_t *ppos, void *cookie)
 {
 	ctl_table fake_table;
 	unsigned char buf[64], tmp_uuid[16], *uuid;
@@ -1246,7 +1246,7 @@ static int proc_do_uuid(ctl_table *table, int write,
 	fake_table.data = buf;
 	fake_table.maxlen = sizeof(buf);
 
-	return proc_dostring(&fake_table, write, buffer, lenp, ppos);
+	return proc_dostring(&fake_table, write, buffer, lenp, ppos, NULL);
 }
 
 static int sysctl_poolsize = INPUT_POOL_WORDS * 32;

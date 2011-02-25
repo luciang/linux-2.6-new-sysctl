@@ -676,7 +676,8 @@ int sysctl_compact_memory;
 
 /* This is the entry point for compacting all nodes via /proc/sys/vm */
 int sysctl_compaction_handler(struct ctl_table *table, int write,
-			void __user *buffer, size_t *length, loff_t *ppos)
+			      void __user *buffer, size_t *length,
+			      loff_t *ppos, void *cookie)
 {
 	if (write)
 		return compact_nodes();
@@ -685,9 +686,10 @@ int sysctl_compaction_handler(struct ctl_table *table, int write,
 }
 
 int sysctl_extfrag_handler(struct ctl_table *table, int write,
-			void __user *buffer, size_t *length, loff_t *ppos)
+			   void __user *buffer, size_t *length,
+			   loff_t *ppos, void *cookie)
 {
-	proc_dointvec_minmax(table, write, buffer, length, ppos);
+	proc_dointvec_minmax(table, write, buffer, length, ppos, NULL);
 
 	return 0;
 }

@@ -85,7 +85,7 @@ struct workqueue_struct *svc_rdma_wq;
  */
 static int read_reset_stat(ctl_table *table, int write,
 			   void __user *buffer, size_t *lenp,
-			   loff_t *ppos)
+			   loff_t *ppos, void *cookie)
 {
 	atomic_t *stat = (atomic_t *)table->data;
 

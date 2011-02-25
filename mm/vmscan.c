@@ -3273,10 +3273,10 @@ static void scan_all_zones_unevictable_pages(void)
 unsigned long scan_unevictable_pages;
 
 int scan_unevictable_handler(struct ctl_table *table, int write,
-			   void __user *buffer,
-			   size_t *length, loff_t *ppos)
+			     void __user *buffer, size_t *length,
+			     loff_t *ppos, void *cookie)
 {
-	proc_doulongvec_minmax(table, write, buffer, length, ppos);
+	proc_doulongvec_minmax(table, write, buffer, length, ppos, NULL);
 
 	if (write && *(unsigned long *)table->data)
 		scan_all_zones_unevictable_pages();

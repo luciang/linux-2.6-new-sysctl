@@ -29,12 +29,13 @@ xfs_stats_clear_proc_handler(
 	int		write,
 	void		__user *buffer,
 	size_t		*lenp,
-	loff_t		*ppos)
+	loff_t		*ppos,
+	void		*cookie)
 {
 	int		c, ret, *valp = ctl->data;
 	__uint32_t	vn_active;
 
-	ret = proc_dointvec_minmax(ctl, write, buffer, lenp, ppos);
+	ret = proc_dointvec_minmax(ctl, write, buffer, lenp, ppos, NULL);
 
 	if (!ret && write && *valp) {
 		xfs_notice(NULL, "Clearing xfsstats");
@@ -59,11 +60,12 @@ xfs_panic_mask_proc_handler(
 	int		write,
 	void		__user *buffer,
 	size_t		*lenp,
-	loff_t		*ppos)
+	loff_t		*ppos,
+	void		*cookie)
 {
 	int		ret, *valp = ctl->data;
 
-	ret = proc_dointvec_minmax(ctl, write, buffer, lenp, ppos);
+	ret = proc_dointvec_minmax(ctl, write, buffer, lenp, ppos, NULL);
 	if (!ret && write) {
 		xfs_panic_mask = *valp;
 #ifdef DEBUG

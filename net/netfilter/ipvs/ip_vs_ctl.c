@@ -1514,15 +1514,15 @@ static int ip_vs_zero_all(struct net *net)
 
 #ifdef CONFIG_SYSCTL
 static int
-proc_do_defense_mode(ctl_table *table, int write,
-		     void __user *buffer, size_t *lenp, loff_t *ppos)
+proc_do_defense_mode(ctl_table *table, int write, void __user *buffer,
+		     size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct net *net = current->nsproxy->net_ns;
 	int *valp = table->data;
 	int val = *valp;
 	int rc;
 
-	rc = proc_dointvec(table, write, buffer, lenp, ppos);
+	rc = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 	if (write && (*valp != val)) {
 		if ((*valp < 0) || (*valp > 3)) {
 			/* Restore the correct value */
@@ -1535,8 +1535,8 @@ proc_do_defense_mode(ctl_table *table, int write,
 }
 
 static int
-proc_do_sync_threshold(ctl_table *table, int write,
-		       void __user *buffer, size_t *lenp, loff_t *ppos)
+proc_do_sync_threshold(ctl_table *table, int write, void __user *buffer,
+		       size_t *lenp, loff_t *ppos, void *cookie)
 {
 	int *valp = table->data;
 	int val[2];
@@ -1545,7 +1545,7 @@ proc_do_sync_threshold(ctl_table *table, int write,
 	/* backup the value first */
 	memcpy(val, valp, sizeof(val));
 
-	rc = proc_dointvec(table, write, buffer, lenp, ppos);
+	rc = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 	if (write && (valp[0] < 0 || valp[1] < 0 || valp[0] >= valp[1])) {
 		/* Restore the correct value */
 		memcpy(valp, val, sizeof(val));

@@ -288,9 +288,9 @@ extern void opt_pre_handler(struct kprobe *p, struct pt_regs *regs);
 
 #ifdef CONFIG_SYSCTL
 extern int sysctl_kprobes_optimization;
-extern int proc_kprobes_optimization_handler(struct ctl_table *table,
-					     int write, void __user *buffer,
-					     size_t *length, loff_t *ppos);
+extern int proc_kprobes_optimization_handler(struct ctl_table *table, int write,
+					     void __user *buffer, size_t *len,
+					     loff_t *ppos, void *cookie);
 #endif
 
 #endif /* CONFIG_OPTPROBES */

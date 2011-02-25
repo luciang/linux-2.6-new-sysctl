@@ -826,13 +826,13 @@ static void __kprobes unoptimize_all_kprobes(void)
 int sysctl_kprobes_optimization;
 int proc_kprobes_optimization_handler(struct ctl_table *table, int write,
 				      void __user *buffer, size_t *length,
-				      loff_t *ppos)
+				      loff_t *ppos, void *cookie)
 {
 	int ret;
 
 	mutex_lock(&kprobe_mutex);
 	sysctl_kprobes_optimization = kprobes_allow_optimization ? 1 : 0;
-	ret = proc_dointvec_minmax(table, write, buffer, length, ppos);
+	ret = proc_dointvec_minmax(table, write, buffer, length, ppos, NULL);
 
 	if (sysctl_kprobes_optimization)
 		optimize_all_kprobes();

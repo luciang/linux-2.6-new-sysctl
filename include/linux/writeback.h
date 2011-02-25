@@ -108,21 +108,15 @@ extern int laptop_mode;
 extern unsigned long determine_dirtyable_memory(void);
 
 extern int dirty_background_ratio_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos);
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie);
 extern int dirty_background_bytes_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos);
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie);
 extern int dirty_ratio_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos);
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie);
 extern int dirty_bytes_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos);
-
-struct ctl_table;
-int dirty_writeback_centisecs_handler(struct ctl_table *, int,
-				      void __user *, size_t *, loff_t *);
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie);
+extern int dirty_writeback_centisecs_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos, void *cookie);
 
 void global_dirty_limits(unsigned long *pbackground, unsigned long *pdirty);
 unsigned long bdi_dirty_limit(struct backing_dev_info *bdi,

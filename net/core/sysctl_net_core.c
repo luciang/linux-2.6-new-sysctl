@@ -20,7 +20,8 @@
 
 #ifdef CONFIG_RPS
 static int rps_sock_flow_sysctl(ctl_table *table, int write,
-				void __user *buffer, size_t *lenp, loff_t *ppos)
+				void __user *buffer, size_t *lenp,
+				loff_t *ppos, void *cookie)
 {
 	unsigned int orig_size, size;
 	int ret, i;
@@ -38,7 +39,7 @@ static int rps_sock_flow_sysctl(ctl_table *table, int write,
 					lockdep_is_held(&sock_flow_mutex));
 	size = orig_size = orig_sock_table ? orig_sock_table->mask + 1 : 0;
 
-	ret = proc_dointvec(&tmp, write, buffer, lenp, ppos);
+	ret = proc_dointvec(&tmp, write, buffer, lenp, ppos, NULL);
 
 	if (write) {
 		if (size) {

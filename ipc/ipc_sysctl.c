@@ -27,18 +27,19 @@ static void *get_ipc(ctl_table *table)
 }
 
 #ifdef CONFIG_PROC_SYSCTL
-static int proc_ipc_dointvec(ctl_table *table, int write,
-	void __user *buffer, size_t *lenp, loff_t *ppos)
+static int proc_ipc_dointvec(ctl_table *table, int write, void __user *buffer,
+			     size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct ctl_table ipc_table;
 	memcpy(&ipc_table, table, sizeof(ipc_table));
 	ipc_table.data = get_ipc(table);
 
-	return proc_dointvec(&ipc_table, write, buffer, lenp, ppos);
+	return proc_dointvec(&ipc_table, write, buffer, lenp, ppos, NULL);
 }
 
 static int proc_ipc_callback_dointvec(ctl_table *table, int write,
-	void __user *buffer, size_t *lenp, loff_t *ppos)
+				      void __user *buffer, size_t *lenp,
+				      loff_t *ppos, void *cookie)
 {
 	struct ctl_table ipc_table;
 	size_t lenp_bef = *lenp;
@@ -47,7 +48,7 @@ static int proc_ipc_callback_dointvec(ctl_table *table, int write,
 	memcpy(&ipc_table, table, sizeof(ipc_table));
 	ipc_table.data = get_ipc(table);
 
-	rc = proc_dointvec(&ipc_table, write, buffer, lenp, ppos);
+	rc = proc_dointvec(&ipc_table, write, buffer, lenp, ppos, NULL);
 
 	if (write && !rc && lenp_bef == *lenp)
 		/*
@@ -61,14 +62,15 @@ static int proc_ipc_callback_dointvec(ctl_table *table, int write,
 }
 
 static int proc_ipc_doulongvec_minmax(ctl_table *table, int write,
-	void __user *buffer, size_t *lenp, loff_t *ppos)
+				      void __user *buffer, size_t *lenp,
+				      loff_t *ppos, void *cookie)
 {
 	struct ctl_table ipc_table;
 	memcpy(&ipc_table, table, sizeof(ipc_table));
 	ipc_table.data = get_ipc(table);
 
 	return proc_doulongvec_minmax(&ipc_table, write, buffer,
-					lenp, ppos);
+				      lenp, ppos, NULL);
 }
 
 /*
@@ -95,7 +97,8 @@ static void ipc_auto_callback(int val)
 }
 
 static int proc_ipcauto_dointvec_minmax(ctl_table *table, int write,
-	void __user *buffer, size_t *lenp, loff_t *ppos)
+					void __user *buffer, size_t *lenp,
+					loff_t *ppos, void *cookie)
 {
 	struct ctl_table ipc_table;
 	size_t lenp_bef = *lenp;
@@ -106,7 +109,7 @@ static int proc_ipcauto_dointvec_minmax(ctl_table *table, int write,
 	ipc_table.data = get_ipc(table);
 	oldval = *((int *)(ipc_table.data));
 
-	rc = proc_dointvec_minmax(&ipc_table, write, buffer, lenp, ppos);
+	rc = proc_dointvec_minmax(&ipc_table, write, buffer, lenp, ppos, NULL);
 
 	if (write && !rc && lenp_bef == *lenp) {
 		int newval = *((int *)(ipc_table.data));

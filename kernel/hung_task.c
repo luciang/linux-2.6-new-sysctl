@@ -171,12 +171,12 @@ static unsigned long timeout_jiffies(unsigned long timeout)
  * Process updating of timeout sysctl
  */
 int proc_dohung_task_timeout_secs(struct ctl_table *table, int write,
-				  void __user *buffer,
-				  size_t *lenp, loff_t *ppos)
+				  void __user *buffer, size_t *lenp,
+				  loff_t *ppos, void *cookie)
 {
 	int ret;
 
-	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
+	ret = proc_doulongvec_minmax(table, write, buffer, lenp, ppos, NULL);
 
 	if (ret || !write)
 		goto out;

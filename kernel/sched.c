@@ -8982,7 +8982,7 @@ static int sched_rt_global_constraints(void)
 
 int sched_rt_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
-		loff_t *ppos)
+		loff_t *ppos, void *cookie)
 {
 	int ret;
 	int old_period, old_runtime;
@@ -8992,7 +8992,7 @@ int sched_rt_handler(struct ctl_table *table, int write,
 	old_period = sysctl_sched_rt_period;
 	old_runtime = sysctl_sched_rt_runtime;
 
-	ret = proc_dointvec(table, write, buffer, lenp, ppos);
+	ret = proc_dointvec(table, write, buffer, lenp, ppos, NULL);
 
 	if (!ret && write) {
 		ret = sched_rt_global_constraints();

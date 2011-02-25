@@ -312,8 +312,8 @@ extern void touch_softlockup_watchdog(void);
 extern void touch_softlockup_watchdog_sync(void);
 extern void touch_all_softlockup_watchdogs(void);
 extern int proc_dowatchdog_thresh(struct ctl_table *table, int write,
-				  void __user *buffer,
-				  size_t *lenp, loff_t *ppos);
+				  void __user *buffer, size_t *lenp,
+				  loff_t *ppos, void *cookie);
 extern unsigned int  softlockup_panic;
 extern int softlockup_thresh;
 void lockup_detector_init(void);
@@ -338,8 +338,8 @@ extern unsigned long sysctl_hung_task_check_count;
 extern unsigned long sysctl_hung_task_timeout_secs;
 extern unsigned long sysctl_hung_task_warnings;
 extern int proc_dohung_task_timeout_secs(struct ctl_table *table, int write,
-					 void __user *buffer,
-					 size_t *lenp, loff_t *ppos);
+					 void __user *buffer, size_t *lenp,
+					 loff_t *ppos, void *cookie);
 #else
 /* Avoid need for ifdefs elsewhere in the code */
 enum { sysctl_hung_task_timeout_secs = 0 };
@@ -1929,8 +1929,8 @@ extern unsigned int sysctl_timer_migration;
 extern unsigned int sysctl_sched_shares_window;
 
 int sched_proc_update_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *length,
-		loff_t *ppos);
+			      void __user *buffer, size_t *length,
+			      loff_t *ppos, void *cookie);
 #endif
 #ifdef CONFIG_SCHED_DEBUG
 static inline unsigned int get_sysctl_timer_migration(void)
@@ -1947,8 +1947,8 @@ extern unsigned int sysctl_sched_rt_period;
 extern int sysctl_sched_rt_runtime;
 
 int sched_rt_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *lenp,
-		loff_t *ppos);
+		     void __user *buffer, size_t *lenp,
+		     loff_t *ppos, void *cookie);
 
 #ifdef CONFIG_SCHED_AUTOGROUP
 extern unsigned int sysctl_sched_autogroup_enabled;

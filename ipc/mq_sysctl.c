@@ -31,25 +31,26 @@ static void *get_mq(ctl_table *table)
 	return which;
 }
 
-static int proc_mq_dointvec(ctl_table *table, int write,
-	void __user *buffer, size_t *lenp, loff_t *ppos)
+static int proc_mq_dointvec(ctl_table *table, int write, void __user *buffer,
+			    size_t *lenp, loff_t *ppos, void *cookie)
 {
 	struct ctl_table mq_table;
 	memcpy(&mq_table, table, sizeof(mq_table));
 	mq_table.data = get_mq(table);
 
-	return proc_dointvec(&mq_table, write, buffer, lenp, ppos);
+	return proc_dointvec(&mq_table, write, buffer, lenp, ppos, NULL);
 }
 
 static int proc_mq_dointvec_minmax(ctl_table *table, int write,
-	void __user *buffer, size_t *lenp, loff_t *ppos)
+				   void __user *buffer, size_t *lenp,
+				   loff_t *ppos, void *cookie)
 {
 	struct ctl_table mq_table;
 	memcpy(&mq_table, table, sizeof(mq_table));
 	mq_table.data = get_mq(table);
 
 	return proc_dointvec_minmax(&mq_table, write, buffer,
-					lenp, ppos);
+				    lenp, ppos, NULL);
 }
 #else
 #define proc_mq_dointvec NULL

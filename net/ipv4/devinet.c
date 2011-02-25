@@ -1487,10 +1487,10 @@ static void inet_forward_change(struct net *net)
 }
 
 static int devinet_conf_proc(ctl_table *ctl, int write,
-			     void __user *buffer,
-			     size_t *lenp, loff_t *ppos)
+			     void __user *buffer, size_t *lenp,
+			     loff_t *ppos, void *cookie)
 {
-	int ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	int ret = proc_dointvec(ctl, write, buffer, lenp, ppos, NULL);
 
 	if (write) {
 		struct ipv4_devconf *cnf = ctl->extra1;
@@ -1507,13 +1507,13 @@ static int devinet_conf_proc(ctl_table *ctl, int write,
 }
 
 static int devinet_sysctl_forward(ctl_table *ctl, int write,
-				  void __user *buffer,
-				  size_t *lenp, loff_t *ppos)
+				  void __user *buffer, size_t *lenp,
+				  loff_t *ppos, void *cookie)
 {
 	int *valp = ctl->data;
 	int val = *valp;
 	loff_t pos = *ppos;
-	int ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	int ret = proc_dointvec(ctl, write, buffer, lenp, ppos, NULL);
 
 	if (write && *valp != val) {
 		struct net *net = ctl->extra2;
@@ -1542,12 +1542,12 @@ static int devinet_sysctl_forward(ctl_table *ctl, int write,
 }
 
 static int ipv4_doint_and_flush(ctl_table *ctl, int write,
-				void __user *buffer,
-				size_t *lenp, loff_t *ppos)
+				void __user *buffer, size_t *lenp,
+				loff_t *ppos, void *cookie)
 {
 	int *valp = ctl->data;
 	int val = *valp;
-	int ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	int ret = proc_dointvec(ctl, write, buffer, lenp, ppos, NULL);
 	struct net *net = ctl->extra2;
 
 	if (write && *valp != val)

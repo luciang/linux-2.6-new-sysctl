@@ -78,15 +78,15 @@ EXPORT_SYMBOL_GPL(get_max_files);
  * Handle nr_files sysctl
  */
 #if defined(CONFIG_SYSCTL) && defined(CONFIG_PROC_FS)
-int proc_nr_files(ctl_table *table, int write,
-                     void __user *buffer, size_t *lenp, loff_t *ppos)
+int proc_nr_files(ctl_table *table, int write, void __user *buffer,
+		  size_t *lenp, loff_t *ppos, void *cookie)
 {
 	files_stat.nr_files = get_nr_files();
-	return proc_doulongvec_minmax(table, write, buffer, lenp, ppos);
+	return proc_doulongvec_minmax(table, write, buffer, lenp, ppos, NULL);
 }
 #else
-int proc_nr_files(ctl_table *table, int write,
-                     void __user *buffer, size_t *lenp, loff_t *ppos)
+int proc_nr_files(ctl_table *table, int write, void __user *buffer,
+		  size_t *lenp, loff_t *ppos, void *cookie)
 {
 	return -ENOSYS;
 }

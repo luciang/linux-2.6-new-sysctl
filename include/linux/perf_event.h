@@ -1119,7 +1119,7 @@ extern int sysctl_perf_event_sample_rate;
 
 extern int perf_proc_update_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
-		loff_t *ppos);
+		loff_t *ppos, void *cookie);
 
 static inline bool perf_paranoid_tracepoint_raw(void)
 {
