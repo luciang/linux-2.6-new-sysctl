@@ -21,7 +21,7 @@ static ctl_table unix_table[] = {
 		.data		= &init_net.unx.sysctl_max_dgram_qlen,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
-		.proc_handler	= proc_dointvec
+		.proc_handler	= proc_dointvec,
 	},
 	{ }
 };
@@ -34,30 +34,15 @@ static struct ctl_path unix_path[] = {
 
 int __net_init unix_sysctl_register(struct net *net)
 {
-	struct ctl_table *table;
-
-	table = kmemdup(unix_table, sizeof(unix_table), GFP_KERNEL);
-	if (table == NULL)
-		goto err_alloc;
-
-	table[0].data = &net->unx.sysctl_max_dgram_qlen;
-	net->unx.ctl = register_net_sysctl_table(net, unix_path, table);
+	net->unx.ctl = register_net_sysctl_table_net_cookie(net, unix_path,
+							    unix_table);
 	if (net->unx.ctl == NULL)
-		goto err_reg;
+		return -ENOMEM;
 
 	return 0;
-
-err_reg:
-	kfree(table);
-err_alloc:
-	return -ENOMEM;
 }
 
 void unix_sysctl_unregister(struct net *net)
 {
-	struct ctl_table *table;
-
-	table = net->unx.ctl->ctl_table_arg;
 	unregister_sysctl_table(net->unx.ctl);
-	kfree(table);
 }
