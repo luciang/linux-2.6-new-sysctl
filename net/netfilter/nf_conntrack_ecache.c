@@ -163,14 +163,14 @@ static struct ctl_table event_sysctl_table[] = {
 		.data		= &init_net.ct.sysctl_events,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
-		.proc_handler	= proc_dointvec,
+		.proc_handler	= netns_proc_dointvec,
 	},
 	{
 		.procname	= "nf_conntrack_events_retry_timeout",
 		.data		= &init_net.ct.sysctl_events_retry_timeout,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
-		.proc_handler	= proc_dointvec_jiffies,
+		.proc_handler	= netns_proc_dointvec_jiffies,
 	},
 	{}
 };
@@ -185,38 +185,18 @@ static struct nf_ct_ext_type event_extend __read_mostly = {
 #ifdef CONFIG_SYSCTL
 static int nf_conntrack_event_init_sysctl(struct net *net)
 {
-	struct ctl_table *table;
-
-	table = kmemdup(event_sysctl_table, sizeof(event_sysctl_table),
-			GFP_KERNEL);
-	if (!table)
-		goto out;
-
-	table[0].data = &net->ct.sysctl_events;
-	table[1].data = &net->ct.sysctl_events_retry_timeout;
-
-	net->ct.event_sysctl_header =
-		register_net_sysctl_table(net,
-					  nf_net_netfilter_sysctl_path, table);
+	net->ct.event_sysctl_header = register_net_sysctl_table(net,
+			  nf_net_netfilter_sysctl_path, event_sysctl_table);
 	if (!net->ct.event_sysctl_header) {
 		printk(KERN_ERR "nf_ct_event: can't register to sysctl.\n");
-		goto out_register;
+		return -ENOMEM;
 	}
 	return 0;
-
-out_register:
-	kfree(table);
-out:
-	return -ENOMEM;
 }
 
 static void nf_conntrack_event_fini_sysctl(struct net *net)
 {
-	struct ctl_table *table;
-
-	table = net->ct.event_sysctl_header->ctl_table_arg;
 	unregister_net_sysctl_table(net->ct.event_sysctl_header);
-	kfree(table);
 }
 #else
 static int nf_conntrack_event_init_sysctl(struct net *net)
