@@ -420,28 +420,28 @@ static ctl_table nf_ct_sysctl_table[] = {
 		.data		= &init_net.ct.count,
 		.maxlen		= sizeof(int),
 		.mode		= 0444,
-		.proc_handler	= proc_dointvec,
+		.proc_handler	= netns_proc_dointvec,
 	},
 	{
 		.procname       = "nf_conntrack_buckets",
 		.data           = &init_net.ct.htable_size,
 		.maxlen         = sizeof(unsigned int),
 		.mode           = 0444,
-		.proc_handler   = proc_dointvec,
+		.proc_handler   = netns_proc_dointvec,
 	},
 	{
 		.procname	= "nf_conntrack_checksum",
 		.data		= &init_net.ct.sysctl_checksum,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
-		.proc_handler	= proc_dointvec,
+		.proc_handler	= netns_proc_dointvec,
 	},
 	{
 		.procname	= "nf_conntrack_log_invalid",
 		.data		= &init_net.ct.sysctl_log_invalid,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
-		.proc_handler	= proc_dointvec_minmax,
+		.proc_handler	= netns_proc_dointvec_minmax,
 		.extra1		= &log_invalid_proto_min,
 		.extra2		= &log_invalid_proto_max,
 	},
@@ -475,8 +475,6 @@ static struct ctl_path nf_ct_path[] = {
 
 static int nf_conntrack_standalone_init_sysctl(struct net *net)
 {
-	struct ctl_table *table;
-
 	if (net_eq(net, &init_net)) {
 		nf_ct_netfilter_header =
 		       register_sysctl_paths(nf_ct_path, nf_ct_netfilter_table);
@@ -484,26 +482,14 @@ static int nf_conntrack_standalone_init_sysctl(struct net *net)
 			goto out;
 	}
 
-	table = kmemdup(nf_ct_sysctl_table, sizeof(nf_ct_sysctl_table),
-			GFP_KERNEL);
-	if (!table)
-		goto out_kmemdup;
-
-	table[1].data = &net->ct.count;
-	table[2].data = &net->ct.htable_size;
-	table[3].data = &net->ct.sysctl_checksum;
-	table[4].data = &net->ct.sysctl_log_invalid;
-
 	net->ct.sysctl_header = register_net_sysctl_table(net,
-					nf_net_netfilter_sysctl_path, table);
+			nf_net_netfilter_sysctl_path, nf_ct_sysctl_table);
 	if (!net->ct.sysctl_header)
 		goto out_unregister_netfilter;
 
 	return 0;
 
 out_unregister_netfilter:
-	kfree(table);
-out_kmemdup:
 	if (net_eq(net, &init_net))
 		unregister_sysctl_table(nf_ct_netfilter_header);
 out:
@@ -513,13 +499,9 @@ out:
 
 static void nf_conntrack_standalone_fini_sysctl(struct net *net)
 {
-	struct ctl_table *table;
-
+	unregister_net_sysctl_table(net->ct.sysctl_header);
 	if (net_eq(net, &init_net))
 		unregister_sysctl_table(nf_ct_netfilter_header);
-	table = net->ct.sysctl_header->ctl_table_arg;
-	unregister_net_sysctl_table(net->ct.sysctl_header);
-	kfree(table);
 }
 #else
 static int nf_conntrack_standalone_init_sysctl(struct net *net)
