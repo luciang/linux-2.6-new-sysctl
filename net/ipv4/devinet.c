@@ -1656,8 +1656,8 @@ static int __devinet_sysctl_register(struct net *net, char *dev_name,
 
 	devinet_ctl_path[DEVINET_CTL_PATH_DEV].procname = t->dev_name;
 
-	t->sysctl_header = register_net_sysctl_table(net, devinet_ctl_path,
-			t->devinet_vars);
+	t->sysctl_header = register_net_sysctl_table_with_parent(net,
+			 devinet_ctl_path, t->devinet_vars, net->ipv4.conf_hdr);
 	if (!t->sysctl_header)
 		goto free_procname;
 
