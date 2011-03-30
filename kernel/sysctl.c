@@ -209,6 +209,7 @@ static struct ctl_table_header root_table_header = {
 	.root = &sysctl_table_root,
 	.set = &sysctl_table_root.default_set,
 	.ctl_header_cookie = NULL,
+	.private_children = LIST_HEAD_INIT(root_table_header.private_children),
 };
 static struct ctl_table_root sysctl_table_root = {
 	.root_list = LIST_HEAD_INIT(sysctl_table_root.root_list),
@@ -1676,6 +1677,38 @@ struct ctl_table_header *sysctl_head_next(struct ctl_table_header *prev)
 	return __sysctl_head_next(current->nsproxy, prev);
 }
 
+struct ctl_table_header *
+sysctl_private_child_next(struct ctl_table_header *prev,
+			  struct ctl_table_header *parent)
+{
+	struct list_head *tmp;
+
+	if (!parent)
+		return NULL;
+
+	spin_lock(&sysctl_lock);
+	if (prev) {
+		tmp = prev->ctl_entry.next;
+		unuse_table(prev);
+	} else {
+		tmp = parent->private_children.next;
+	}
+	for (;;) {
+		struct ctl_table_header *head;
+		if (tmp == &parent->private_children)
+			break; /* reached end-of-list sentinel */
+
+		head = list_entry(tmp, struct ctl_table_header, ctl_entry);
+		if (use_table(head)) {
+			spin_unlock(&sysctl_lock);
+			return head;
+		}
+		tmp = tmp->next;
+	}
+	spin_unlock(&sysctl_lock);
+	return NULL;
+}
+
 void register_sysctl_root(struct ctl_table_root *root)
 {
 	spin_lock(&sysctl_lock);
@@ -1788,6 +1821,16 @@ static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
  * @cookie: Pointer to user provided data that must be accessible
  *  until unregister_sysctl_table. This cookie will be passed to the
  *  proc_handler.
+ * @private_parent: if NULL then the the created header will have as a
+ *  parent the first header registered with the closest matching path.
+ *  If not-NULL, the created header will be ca private child of
+ *  @private_parent. There will be no attempt to check whether there
+ *  is a better match for a parent (another header with a closer
+ *  matching path). To be used when you dynamically create a lot of
+ *  headers under the same path. E.g. when creating an entry for eth0
+ *  under '/proc/sys/net/ipv4/conf/eth0', set @private_parent to the
+ *  header corresponding to '/proc/sys/net/ipv4/conf/'
+ *
  *
  * Register a sysctl table hierarchy. @table should be a filled in ctl_table
  * array. A completely 0 filled entry terminates the table.
@@ -1837,7 +1880,8 @@ static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
  */
 struct ctl_table_header *__register_sysctl_paths(
 	struct ctl_table_root *root, struct nsproxy *namespaces,
-	const struct ctl_path *path, struct ctl_table *table, void *cookie)
+	const struct ctl_path *path, struct ctl_table *table,
+	void *cookie, struct ctl_table_header *private_parent)
 {
 	struct ctl_table_header *header;
 	struct ctl_table *new, **prevp;
@@ -1879,6 +1923,7 @@ struct ctl_table_header *__register_sysctl_paths(
 	header->ctl_table_arg = table;
 
 	INIT_LIST_HEAD(&header->ctl_entry);
+	INIT_LIST_HEAD(&header->private_children);
 	header->used = 0;
 	header->unregistering = NULL;
 	header->root = root;
@@ -1886,26 +1931,33 @@ struct ctl_table_header *__register_sysctl_paths(
 	header->count = 1;
 	header->ctl_header_cookie = cookie;
 #ifdef CONFIG_SYSCTL_SYSCALL_CHECK
-	if (sysctl_check_table(namespaces, header->ctl_table)) {
+	if (!private_parent && sysctl_check_table(namespaces, header->ctl_table)) {
 		kfree(header);
 		return NULL;
 	}
 #endif
 	spin_lock(&sysctl_lock);
+
 	header->set = lookup_header_set(root, namespaces);
 	header->attached_by = header->ctl_table;
 	header->attached_to = root_table;
 	header->parent = &root_table_header;
-	for (set = header->set; set; set = set->parent) {
-		struct ctl_table_header *p;
-		list_for_each_entry(p, &set->list, ctl_entry) {
-			if (p->unregistering)
-				continue;
-			try_attach(p, header);
+
+	if (private_parent) {
+		try_attach(private_parent, header);
+		list_add_tail(&header->ctl_entry, &private_parent->private_children);
+	} else {
+		for (set = header->set; set; set = set->parent) {
+			struct ctl_table_header *p;
+			list_for_each_entry(p, &set->list, ctl_entry) {
+				if (p->unregistering)
+					continue;
+				try_attach(p, header);
+			}
 		}
+		list_add_tail(&header->ctl_entry, &header->set->list);
 	}
 	header->parent->count++;
-	list_add_tail(&header->ctl_entry, &header->set->list);
 	spin_unlock(&sysctl_lock);
 
 	return header;
@@ -1925,7 +1977,7 @@ struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table)
 {
 	return __register_sysctl_paths(&sysctl_table_root, current->nsproxy,
-				       path, table, NULL);
+				       path, table, NULL, NULL);
 }
 
 /**

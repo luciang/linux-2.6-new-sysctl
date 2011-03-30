@@ -956,6 +956,8 @@ extern struct ctl_table_header *sysctl_head_grab(struct ctl_table_header *);
 extern struct ctl_table_header *sysctl_head_next(struct ctl_table_header *prev);
 extern struct ctl_table_header *__sysctl_head_next(struct nsproxy *namespaces,
 						struct ctl_table_header *prev);
+extern struct ctl_table_header *sysctl_private_child_next(
+	struct ctl_table_header *prev, struct ctl_table_header *parent);
 extern void sysctl_head_finish(struct ctl_table_header *prev);
 extern int sysctl_perm(struct ctl_table_root *root,
 		struct ctl_table *table, int op);
@@ -1067,6 +1069,13 @@ struct ctl_table_header
 	/* Pointer to data that outlives this ctl_table_header.
 	 * Caller responsible to free the cookie. */
 	void *ctl_header_cookie;
+
+	/* List of other headers that are 'children' of this header:
+	 * - the children must be freed before this header
+	 * - the children are assumed to be unique (no duplicate checks)
+	 * - the children are not listed under attached_to/attached_by
+	 * - you cannot attach another node under a private child. */
+	struct list_head private_children;
 };
 
 /* struct ctl_path describes where in the hierarchy a table is added */
@@ -1077,7 +1086,8 @@ struct ctl_path {
 void register_sysctl_root(struct ctl_table_root *root);
 struct ctl_table_header *__register_sysctl_paths(
 	struct ctl_table_root *root, struct nsproxy *namespaces,
-	const struct ctl_path *path, struct ctl_table *table, void *cookie);
+	const struct ctl_path *path, struct ctl_table *table,
+	void *cookie, struct ctl_table_header *private_parent);
 struct ctl_table_header *register_sysctl_table(struct ctl_table * table);
 struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table);
