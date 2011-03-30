@@ -4512,8 +4512,8 @@ static int __addrconf_sysctl_register(struct net *net, char *dev_name,
 
 	addrconf_ctl_path[ADDRCONF_CTL_PATH_DEV].procname = t->dev_name;
 
-	t->sysctl_header = register_net_sysctl_table(net, addrconf_ctl_path,
-			t->addrconf_vars);
+	t->sysctl_header = register_net_sysctl_table_with_parent(net,
+	        addrconf_ctl_path, t->addrconf_vars, net->ipv6.sysctl.conf_hdr);
 	if (t->sysctl_header == NULL)
 		goto free_procname;
 
