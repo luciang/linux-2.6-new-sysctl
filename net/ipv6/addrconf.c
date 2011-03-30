@@ -4556,8 +4556,25 @@ static void addrconf_sysctl_unregister(struct inet6_dev *idev)
 	neigh_sysctl_unregister(idev->nd_parms);
 }
 
+/* empty entry for '/proc/sys/net/ipv6/conf/' */
+static __net_initdata struct ctl_table empty[1];
+static __net_initdata struct ctl_table ipv6_conf_skel[] = {
+	{
+		.procname       = "conf",
+		.mode           = 0555,
+		.child          = empty,
+	},
+	{ },
+};
 
-#endif
+static __net_initdata const struct ctl_path net_ipv6_path[] = {
+	{ .procname = "net", },
+	{ .procname = "ipv6", },
+	{ },
+};
+
+#endif /* CONFIG_SYSCTL */
+
 
 static int __net_init addrconf_init_net(struct net *net)
 {
@@ -4586,6 +4603,12 @@ static int __net_init addrconf_init_net(struct net *net)
 	net->ipv6.devconf_dflt = dflt;
 
 #ifdef CONFIG_SYSCTL
+	err = -ENOMEM;
+	net->ipv6.sysctl.conf_hdr = register_net_sysctl_table(net,
+					net_ipv6_path, ipv6_conf_skel);
+	if (net->ipv6.sysctl.conf_hdr == NULL)
+		goto err_reg_conf;
+
 	err = __addrconf_sysctl_register(net, "all", NULL, all);
 	if (err < 0)
 		goto err_reg_all;
@@ -4593,6 +4616,7 @@ static int __net_init addrconf_init_net(struct net *net)
 	err = __addrconf_sysctl_register(net, "default", NULL, dflt);
 	if (err < 0)
 		goto err_reg_dflt;
+
 #endif
 	return 0;
 
@@ -4600,6 +4624,8 @@ static int __net_init addrconf_init_net(struct net *net)
 err_reg_dflt:
 	__addrconf_sysctl_unregister(all);
 err_reg_all:
+	unregister_net_sysctl_table(net->ipv6.sysctl.conf_hdr);
+err_reg_conf:
 	kfree(dflt);
 #endif
 err_alloc_dflt:
@@ -4613,6 +4639,7 @@ static void __net_exit addrconf_exit_net(struct net *net)
 #ifdef CONFIG_SYSCTL
 	__addrconf_sysctl_unregister(net->ipv6.devconf_dflt);
 	__addrconf_sysctl_unregister(net->ipv6.devconf_all);
+	unregister_net_sysctl_table(net->ipv6.sysctl.conf_hdr);
 #endif
 	if (!net_eq(net, &init_net)) {
 		kfree(net->ipv6.devconf_dflt);
