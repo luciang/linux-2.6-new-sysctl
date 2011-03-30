@@ -103,14 +103,28 @@ out:
 }
 subsys_initcall(sysctl_init);
 
-struct ctl_table_header *register_net_sysctl_table(struct net *net,
-	const struct ctl_path *path, struct ctl_table *table)
+/* The newly created ctl_table_header will be a member of the parent's
+ * private_children list. The following restrictions apply:
+ * - the children must be freed before the parent
+ * - the children are assumed to be unique (no duplicate checks)
+ * - the children are not listed under attached_to/attached_by
+ * - you cannot attach another node under a private child. */
+struct ctl_table_header *register_net_sysctl_table_with_parent(struct net *net,
+	const struct ctl_path *path, struct ctl_table *table,
+	struct ctl_table_header *parent)
 {
 	struct nsproxy namespaces;
 	namespaces = *current->nsproxy;
 	namespaces.net_ns = net;
 	return __register_sysctl_paths(&net_sysctl_root, &namespaces, path,
-				       table, net, NULL);
+				       table, net, parent);
+}
+EXPORT_SYMBOL_GPL(register_net_sysctl_table_with_parent);
+
+struct ctl_table_header *register_net_sysctl_table(struct net *net,
+	const struct ctl_path *path, struct ctl_table *table)
+{
+	return register_net_sysctl_table_with_parent(net, path, table, NULL);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table);
 

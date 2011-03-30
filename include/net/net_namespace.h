@@ -272,6 +272,9 @@ struct ctl_path;
 struct ctl_table;
 struct ctl_table_header;
 
+extern struct ctl_table_header *register_net_sysctl_table_with_parent(
+	struct net *net, const struct ctl_path *path,
+	struct ctl_table *table, struct ctl_table_header *parent);
 extern struct ctl_table_header *register_net_sysctl_table(struct net *net,
 	const struct ctl_path *path, struct ctl_table *table);
 extern struct ctl_table_header *register_net_sysctl_rotable(
