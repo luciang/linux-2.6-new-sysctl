@@ -3139,15 +3139,14 @@ static ctl_table ipv4_route_table[] = {
 	{ }
 };
 
-static struct ctl_table empty[1];
-
 static struct ctl_table ipv4_skeleton[] =
 {
-	{ .procname = "route", 
-	  .mode = 0555, .child = ipv4_route_table},
-	{ .procname = "neigh", 
-	  .mode = 0555, .child = empty},
-	{ }
+	{
+		.procname = "route",
+		.mode     = 0555,
+		.child    = ipv4_route_table,
+	},
+	{ },
 };
 
 static __net_initdata struct ctl_path ipv4_path[] = {

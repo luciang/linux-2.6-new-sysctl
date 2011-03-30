@@ -17,6 +17,7 @@ struct netns_ipv4 {
 #ifdef CONFIG_SYSCTL
 	struct ctl_table_header	*forw_hdr;   /* /proc/sys/net/ipv4/ip_forward */
 	struct ctl_table_header	*conf_hdr;   /* /proc/sys/net/ipv4/conf/ */
+	struct ctl_table_header	*neigh_hdr;  /* /proc/sys/net/ipv4/neigh/ */
 	struct ctl_table_header	*frags_hdr;  /* /proc/sys/net/ipv4/ipfrag_* */
 	struct ctl_table_header	*ipv4_hdr;   /* see @ipv4_net_table */
 	struct ctl_table_header *route_hdr;  /* /proc/sys/net/ipv4/route/flush */

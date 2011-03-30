@@ -1302,6 +1302,7 @@ static struct packet_type arp_packet_type __read_mostly = {
 };
 
 static int arp_proc_init(void);
+static int __init arp_sysctl_init(void);
 
 void __init arp_init(void)
 {
@@ -1309,9 +1310,7 @@ void __init arp_init(void)
 
 	dev_add_pack(&arp_packet_type);
 	arp_proc_init();
-#ifdef CONFIG_SYSCTL
-	neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4", NULL);
-#endif
+	arp_sysctl_init();
 	register_netdevice_notifier(&arp_netdev_notifier);
 }
 
@@ -1478,3 +1477,68 @@ static int __init arp_proc_init(void)
 }
 
 #endif /* CONFIG_PROC_FS */
+
+
+
+#ifdef CONFIG_SYSCTL
+
+/* empty entry for '/proc/sys/net/ipv4/neigh/' */
+static struct ctl_table empty[1];
+static struct ctl_table ipv4_neigh_skel[] = {
+	{
+		.procname       = "neigh",
+		.mode           = 0555,
+		.child          = empty,
+	},
+	{ },
+};
+static __net_initdata const struct ctl_path net_ipv4_path[] = {
+	{ .procname = "net", },
+	{ .procname = "ipv4", },
+	{ },
+};
+
+static int __net_init arp_sysctl_net_init(struct net *net)
+{
+	/* register empty dir for /proc/sys/net/ipv4/neigh/ */
+	net->ipv4.neigh_hdr = register_net_sysctl_table(net,
+					net_ipv4_path, ipv4_neigh_skel);
+	if (net->ipv4.neigh_hdr == NULL)
+		return -ENOMEM;
+
+	/* register /proc/sys/net/ipv4/neigh/default */
+	if (net_eq(net, &init_net)) {
+		int err;
+		err = neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4", NULL);
+		if (err) {
+			unregister_net_sysctl_table(net->ipv4.neigh_hdr);
+			return err;
+		}
+	}
+	return 0;
+}
+
+static void __net_exit arp_sysctl_net_exit(struct net *net)
+{
+	neigh_sysctl_unregister(&arp_tbl.parms);
+	unregister_sysctl_table(net->ipv4.neigh_hdr);
+}
+
+static struct pernet_operations arp_sysctl_ops = {
+	.init = arp_sysctl_net_init,
+	.exit = arp_sysctl_net_exit,
+};
+
+static int __init arp_sysctl_init(void)
+{
+	return register_pernet_subsys(&arp_sysctl_ops);
+}
+
+#else /* CONFIG_SYSCTL */
+
+static int __init arp_sysctl_init(void)
+{
+	return 0;
+}
+
+#endif /* CONFIG_SYSCTL */
