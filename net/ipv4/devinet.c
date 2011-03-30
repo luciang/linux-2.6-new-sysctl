@@ -1698,6 +1698,18 @@ static void devinet_sysctl_unregister(struct in_device *idev)
 	neigh_sysctl_unregister(idev->arp_parms);
 }
 
+
+/* empty entry for '/proc/sys/net/ipv4/conf/' */
+static __net_initdata struct ctl_table empty[1];
+static __net_initdata struct ctl_table ipv4_conf_skel[] = {
+	{
+		.procname	= "conf",
+		.mode		= 0555,
+		.child		= empty,
+	},
+	{ },
+};
+
 static struct ctl_table ctl_forward_entry[] = {
 	{
 		.procname	= "ip_forward",
@@ -1712,7 +1724,7 @@ static struct ctl_table ctl_forward_entry[] = {
 	{ },
 };
 
-static __net_initdata struct ctl_path net_ipv4_path[] = {
+static __net_initdata const struct ctl_path net_ipv4_path[] = {
 	{ .procname = "net", },
 	{ .procname = "ipv4", },
 	{ },
@@ -1725,7 +1737,7 @@ static __net_init int devinet_init_net(struct net *net)
 	struct ipv4_devconf *all, *dflt;
 #ifdef CONFIG_SYSCTL
 	struct ctl_table *tbl = ctl_forward_entry;
-	struct ctl_table_header *forw_hdr;
+	struct ctl_table_header *forw_hdr, *conf_hdr;
 #endif
 
 	err = -ENOMEM;
@@ -1753,6 +1765,12 @@ static __net_init int devinet_init_net(struct net *net)
 	}
 
 #ifdef CONFIG_SYSCTL
+	err = -ENOMEM;
+	conf_hdr = register_net_sysctl_table(net, net_ipv4_path, ipv4_conf_skel);
+	if (conf_hdr == NULL)
+		goto err_reg_conf;
+	net->ipv4.conf_hdr = conf_hdr;
+
 	err = __devinet_sysctl_register(net, "all", all);
 	if (err < 0)
 		goto err_reg_all;
@@ -1778,6 +1796,8 @@ err_reg_ctl:
 err_reg_dflt:
 	__devinet_sysctl_unregister(all);
 err_reg_all:
+	unregister_net_sysctl_table(conf_hdr);
+err_reg_conf:
 	if (tbl != ctl_forward_entry)
 		kfree(tbl);
 err_alloc_ctl:
@@ -1800,6 +1820,7 @@ static __net_exit void devinet_exit_net(struct net *net)
 	unregister_net_sysctl_table(net->ipv4.forw_hdr);
 	__devinet_sysctl_unregister(net->ipv4.devconf_dflt);
 	__devinet_sysctl_unregister(net->ipv4.devconf_all);
+	unregister_net_sysctl_table(net->ipv4.conf_hdr);
 	kfree(tbl);
 #endif
 	kfree(net->ipv4.devconf_dflt);
