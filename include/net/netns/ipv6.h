@@ -15,6 +15,7 @@ struct netns_sysctl_ipv6 {
 	struct ctl_table_header *table;
 	struct ctl_table_header *frags_hdr;  /* /proc/sys/net/ipv6/ip6frag_*  */
 	struct ctl_table_header *conf_hdr;   /* /proc/sys/net/ipv6/conf/      */
+	struct ctl_table_header *neigh_hdr;  /* /proc/sys/net/ipv6/neigh/     */
 #endif
 	int bindv6only;
 	int flush_delay;

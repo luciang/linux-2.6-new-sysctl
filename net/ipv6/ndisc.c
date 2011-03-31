@@ -1790,11 +1790,50 @@ int ndisc_ifinfo_sysctl_change(struct ctl_table *ctl, int write,
 
 #endif
 
+
+#ifdef CONFIG_SYSCTL
+
+/* empty entry for '/proc/sys/net/ipv6/neigh/' */
+static __net_initdata struct ctl_table empty[1];
+static __net_initdata struct ctl_table ipv6_neigh_skel[] = {
+	{
+		.procname       = "neigh",
+		.mode           = 0555,
+		.child          = empty,
+	},
+	{ },
+};
+static __net_initdata const struct ctl_path net_ipv6_path[] = {
+	{ .procname = "net", },
+	{ .procname = "ipv6", },
+	{ },
+};
+
+#endif /* CONFIG_SYSCTL */
+
 static int __net_init ndisc_net_init(struct net *net)
 {
 	struct ipv6_pinfo *np;
 	struct sock *sk;
 	int err;
+
+#ifdef CONFIG_SYSCTL
+	err = -ENOMEM;
+	/* register empty dir for /proc/sys/net/ipv6/neigh/ */
+	net->ipv6.sysctl.neigh_hdr = register_net_sysctl_table(net,
+					net_ipv6_path, ipv6_neigh_skel);
+	if (net->ipv6.sysctl.neigh_hdr == NULL)
+		goto register_net_neigh_skel_fail;
+
+	/* register /proc/sys/net/ipv6/neigh/default */
+	if (net_eq(net, &init_net)) {
+		err = neigh_sysctl_register(NULL, &nd_tbl.parms, "ipv6",
+					    &ndisc_ifinfo_sysctl_change);
+		if (err)
+			goto neigh_sysctl_register_fail;
+	}
+#endif /* CONFIG_SYSCTL */
+
 
 	err = inet_ctl_sock_create(&sk, PF_INET6,
 				   SOCK_RAW, IPPROTO_ICMPV6, net);
@@ -1802,7 +1841,7 @@ static int __net_init ndisc_net_init(struct net *net)
 		ND_PRINTK0(KERN_ERR
 			   "ICMPv6 NDISC: Failed to initialize the control socket (err %d).\n",
 			   err);
-		return err;
+		goto inet_ctl_sock_create_fail;
 	}
 
 	net->ipv6.ndisc_sk = sk;
@@ -1813,11 +1852,26 @@ static int __net_init ndisc_net_init(struct net *net)
 	np->mc_loop = 0;
 
 	return 0;
+
+inet_ctl_sock_create_fail:
+
+#ifdef CONFIG_SYSCTL
+	neigh_sysctl_unregister(&nd_tbl.parms);
+neigh_sysctl_register_fail:
+	unregister_net_sysctl_table(net->ipv6.sysctl.neigh_hdr);
+register_net_neigh_skel_fail:
+#endif /* CONFIG_SYSCTL */
+
+	return err;
 }
 
 static void __net_exit ndisc_net_exit(struct net *net)
 {
 	inet_ctl_sock_destroy(net->ipv6.ndisc_sk);
+#ifdef CONFIG_SYSCTL
+	neigh_sysctl_unregister(&nd_tbl.parms);
+	unregister_net_sysctl_table(net->ipv6.sysctl.neigh_hdr);
+#endif /* CONFIG_SYSCTL */
 }
 
 static struct pernet_operations ndisc_net_ops = {
@@ -1829,20 +1883,15 @@ int __init ndisc_init(void)
 {
 	int err;
 
-	err = register_pernet_subsys(&ndisc_net_ops);
-	if (err)
-		return err;
 	/*
 	 * Initialize the neighbour table
 	 */
 	neigh_table_init(&nd_tbl);
 
-#ifdef CONFIG_SYSCTL
-	err = neigh_sysctl_register(NULL, &nd_tbl.parms, "ipv6",
-				    &ndisc_ifinfo_sysctl_change);
+	err = register_pernet_subsys(&ndisc_net_ops);
 	if (err)
-		goto out_unregister_pernet;
-#endif
+		return err;
+
 	err = register_netdevice_notifier(&ndisc_netdev_notifier);
 	if (err)
 		goto out_unregister_sysctl;
@@ -1850,10 +1899,6 @@ out:
 	return err;
 
 out_unregister_sysctl:
-#ifdef CONFIG_SYSCTL
-	neigh_sysctl_unregister(&nd_tbl.parms);
-out_unregister_pernet:
-#endif
 	unregister_pernet_subsys(&ndisc_net_ops);
 	goto out;
 }
@@ -1861,9 +1906,6 @@ out_unregister_pernet:
 void ndisc_cleanup(void)
 {
 	unregister_netdevice_notifier(&ndisc_netdev_notifier);
-#ifdef CONFIG_SYSCTL
-	neigh_sysctl_unregister(&nd_tbl.parms);
-#endif
-	neigh_table_clear(&nd_tbl);
 	unregister_pernet_subsys(&ndisc_net_ops);
+	neigh_table_clear(&nd_tbl);
 }
