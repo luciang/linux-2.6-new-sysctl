@@ -1687,7 +1687,8 @@ static void __devinet_sysctl_unregister(struct ipv4_devconf *cnf)
 
 static void devinet_sysctl_register(struct in_device *idev)
 {
-	neigh_sysctl_register(idev->dev, idev->arp_parms, "ipv4", NULL);
+	neigh_sysctl_register(idev->dev, idev->arp_parms, "ipv4",
+			      NULL, dev_net(idev->dev)->ipv4.neigh_hdr);
 	__devinet_sysctl_register(dev_net(idev->dev), idev->dev->name,
 					&idev->cnf);
 }

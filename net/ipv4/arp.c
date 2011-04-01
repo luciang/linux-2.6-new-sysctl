@@ -1509,7 +1509,8 @@ static int __net_init arp_sysctl_net_init(struct net *net)
 	/* register /proc/sys/net/ipv4/neigh/default */
 	if (net_eq(net, &init_net)) {
 		int err;
-		err = neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4", NULL);
+		err = neigh_sysctl_register(NULL, &arp_tbl.parms, "ipv4",
+					    NULL, net->ipv4.neigh_hdr);
 		if (err) {
 			unregister_net_sysctl_table(net->ipv4.neigh_hdr);
 			return err;

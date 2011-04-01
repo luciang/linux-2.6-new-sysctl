@@ -2804,7 +2804,8 @@ static struct neigh_sysctl_table {
 };
 
 int neigh_sysctl_register(struct net_device *dev, struct neigh_parms *p,
-			  char *p_name, proc_handler *handler)
+			  char *p_name, proc_handler *handler,
+			  struct ctl_table_header *parent_header)
 {
 	struct neigh_sysctl_table *t;
 	const char *dev_name_source = NULL;
@@ -2877,7 +2878,8 @@ int neigh_sysctl_register(struct net_device *dev, struct neigh_parms *p,
 	neigh_path[NEIGH_CTL_PATH_PROTO].procname = p_name;
 
 	t->sysctl_header =
-		register_net_sysctl_table(neigh_parms_net(p), neigh_path, t->neigh_vars);
+		register_net_sysctl_table_with_parent(neigh_parms_net(p),
+				      neigh_path, t->neigh_vars, parent_header);
 	if (!t->sysctl_header)
 		goto free_procname;
 

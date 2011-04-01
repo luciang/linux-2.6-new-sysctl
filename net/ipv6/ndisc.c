@@ -1828,7 +1828,8 @@ static int __net_init ndisc_net_init(struct net *net)
 	/* register /proc/sys/net/ipv6/neigh/default */
 	if (net_eq(net, &init_net)) {
 		err = neigh_sysctl_register(NULL, &nd_tbl.parms, "ipv6",
-					    &ndisc_ifinfo_sysctl_change);
+					    &ndisc_ifinfo_sysctl_change,
+					    net->ipv6.sysctl.neigh_hdr);
 		if (err)
 			goto neigh_sysctl_register_fail;
 	}

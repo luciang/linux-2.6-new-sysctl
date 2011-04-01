@@ -259,11 +259,10 @@ extern void *neigh_seq_start(struct seq_file *, loff_t *, struct neigh_table *, 
 extern void *neigh_seq_next(struct seq_file *, void *, loff_t *);
 extern void neigh_seq_stop(struct seq_file *, void *);
 
-extern int			neigh_sysctl_register(struct net_device *dev, 
-						      struct neigh_parms *p,
-						      char *p_name,
-						      proc_handler *proc_handler);
-extern void			neigh_sysctl_unregister(struct neigh_parms *p);
+extern int neigh_sysctl_register(struct net_device *dev, struct neigh_parms *p,
+				 char *p_name, proc_handler *proc_handler,
+				 struct ctl_table_header *parent_header);
+extern void neigh_sysctl_unregister(struct neigh_parms *p);
 
 static inline void __neigh_parms_put(struct neigh_parms *parms)
 {
