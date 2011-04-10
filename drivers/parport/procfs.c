@@ -419,56 +419,6 @@ parport_device_sysctl_template = {
 	}
 };
 
-struct parport_default_sysctl_table
-{
-	struct ctl_table_header *sysctl_header;
-	ctl_table vars[3];
-        ctl_table default_dir[2];
-	ctl_table parport_dir[2];
-	ctl_table dev_dir[2];
-};
-
-static struct parport_default_sysctl_table
-parport_default_sysctl_table = {
-	.sysctl_header	= NULL,
-	{
-		{
-			.procname	= "timeslice",
-			.data		= &parport_default_timeslice,
-			.maxlen		= sizeof(parport_default_timeslice),
-			.mode		= 0644,
-			.proc_handler	= proc_doulongvec_ms_jiffies_minmax,
-			.extra1		= (void*) &parport_min_timeslice_value,
-			.extra2		= (void*) &parport_max_timeslice_value
-		},
-		{
-			.procname	= "spintime",
-			.data		= &parport_default_spintime,
-			.maxlen		= sizeof(parport_default_spintime),
-			.mode		= 0644,
-			.proc_handler	= proc_dointvec_minmax,
-			.extra1		= (void*) &parport_min_spintime_value,
-			.extra2		= (void*) &parport_max_spintime_value
-		},
-		{}
-	},
-	{
-		{
-			.procname	= "default",
-			.mode		= 0555,
-			.child		= parport_default_sysctl_table.vars
-		},
-		{}
-	},
-	{
-		PARPORT_PARPORT_DIR(parport_default_sysctl_table.default_dir),
-		{}
-	},
-	{
-		PARPORT_DEV_DIR(parport_default_sysctl_table.parport_dir),
-		{}
-	}
-};
 
 
 int parport_proc_register(struct parport *port)
@@ -558,19 +508,53 @@ int parport_device_proc_unregister(struct pardevice *device)
 	return 0;
 }
 
+
+static struct ctl_table_header *parport_default_sysctl_header;
+
+static struct ctl_table parport_default_sysctl_table[] = {
+	{
+		.procname	= "timeslice",
+		.data		= &parport_default_timeslice,
+		.maxlen		= sizeof(parport_default_timeslice),
+		.mode		= 0644,
+		.proc_handler	= proc_doulongvec_ms_jiffies_minmax,
+		.extra1		= (void*) &parport_min_timeslice_value,
+		.extra2		= (void*) &parport_max_timeslice_value
+	},
+	{
+		.procname	= "spintime",
+		.data		= &parport_default_spintime,
+		.maxlen		= sizeof(parport_default_spintime),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= (void*) &parport_min_spintime_value,
+		.extra2		= (void*) &parport_max_spintime_value
+	},
+	{ },
+};
+
+static const __initdata struct ctl_path parport_default_path[] = {
+	{ .procname = "dev" },
+	{ .procname = "parport" },
+	{ .procname = "default" },
+	{  },
+};
+
 static int __init parport_default_proc_register(void)
 {
-	parport_default_sysctl_table.sysctl_header =
-		register_sysctl_table(parport_default_sysctl_table.dev_dir);
+	parport_default_sysctl_header =
+		register_sysctl_paths(parport_default_path,
+				      parport_default_sysctl_table);
+	/* XXX: if this fails then we can't access the sysctl tables for
+	 * /proc/sys/dev/parport/default/. Should the module fail to load? */
 	return 0;
 }
 
 static void __exit parport_default_proc_unregister(void)
 {
-	if (parport_default_sysctl_table.sysctl_header) {
-		unregister_sysctl_table(parport_default_sysctl_table.
-					sysctl_header);
-		parport_default_sysctl_table.sysctl_header = NULL;
+	if (parport_default_sysctl_header) {
+		unregister_sysctl_table(parport_default_sysctl_header);
+		parport_default_sysctl_header = NULL;
 	}
 }
 
