@@ -62,7 +62,7 @@ static int msg_max_limit_max = MAX_MSGMAX;
 static int msg_maxsize_limit_min = MIN_MSGSIZEMAX;
 static int msg_maxsize_limit_max = MAX_MSGSIZEMAX;
 
-static ctl_table mq_sysctls[] = {
+static ctl_table mq_table[] = {
 	{
 		.procname	= "queues_max",
 		.data		= &init_ipc_ns.mq_queues_max,
@@ -91,25 +91,13 @@ static ctl_table mq_sysctls[] = {
 	{}
 };
 
-static ctl_table mq_sysctl_dir[] = {
-	{
-		.procname	= "mqueue",
-		.mode		= 0555,
-		.child		= mq_sysctls,
-	},
-	{}
-};
-
-static ctl_table mq_sysctl_root[] = {
-	{
-		.procname	= "fs",
-		.mode		= 0555,
-		.child		= mq_sysctl_dir,
-	},
-	{}
+static const struct ctl_path mq_path[] = {
+	{ .procname = "fs" },
+	{ .procname = "mqueue" },
+	{ }
 };
 
 struct ctl_table_header *mq_register_sysctl_table(void)
 {
-	return register_sysctl_table(mq_sysctl_root);
+	return register_sysctl_paths(mq_path, mq_table);
 }
