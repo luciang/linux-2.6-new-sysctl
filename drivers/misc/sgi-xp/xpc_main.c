@@ -122,13 +122,11 @@ static ctl_table xpc_sys_xpc_dir[] = {
 	 .extra2 = &xpc_disengage_max_timelimit},
 	{}
 };
-static ctl_table xpc_sys_dir[] = {
-	{
-	 .procname = "xpc",
-	 .mode = 0555,
-	 .child = xpc_sys_xpc_dir},
-	{}
+static const __initdata struct ctl_path xpc_path[] = {
+	{ .procname = "xpc" },
+	{ }
 };
+
 static struct ctl_table_header *xpc_sysctl;
 
 /* non-zero if any remote partition disengage was timed out */
@@ -1236,7 +1234,7 @@ xpc_init(void)
 		goto out_1;
 	}
 
-	xpc_sysctl = register_sysctl_table(xpc_sys_dir);
+	xpc_sysctl = register_sysctl_paths(xpc_path, xpc_sys_xpc_dir);
 
 	/*
 	 * Fill the partition reserved page with the information needed by
