@@ -291,21 +291,9 @@ static ctl_table rtc_table[] = {
 	{ }
 };
 
-static ctl_table rtc_root[] = {
-	{
-		.procname	= "rtc",
-		.mode		= 0555,
-		.child		= rtc_table,
-	},
-	{ }
-};
-
-static ctl_table dev_root[] = {
-	{
-		.procname	= "dev",
-		.mode		= 0555,
-		.child		= rtc_root,
-	},
+static const __initdata struct ctl_path rtc_path[] = {
+	{ .procname = "dev" },
+	{ .procname = "rtc" },
 	{ }
 };
 
@@ -313,13 +301,13 @@ static struct ctl_table_header *sysctl_header;
 
 static int __init init_sysctl(void)
 {
-    sysctl_header = register_sysctl_table(dev_root);
-    return 0;
+	sysctl_header = register_sysctl_paths(rtc_path, rtc_table);
+	return 0;
 }
 
 static void __exit cleanup_sysctl(void)
 {
-    unregister_sysctl_table(sysctl_header);
+	unregister_sysctl_table(sysctl_header);
 }
 
 /*
