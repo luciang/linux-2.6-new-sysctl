@@ -67,7 +67,7 @@ static int fscache_max_active_sysctl(struct ctl_table *table, int write,
 	return ret;
 }
 
-ctl_table fscache_sysctls[] = {
+static ctl_table fscache_table[] = {
 	{
 		.procname	= "object_max_active",
 		.data		= &fscache_object_max_active,
@@ -87,14 +87,11 @@ ctl_table fscache_sysctls[] = {
 	{}
 };
 
-ctl_table fscache_sysctls_root[] = {
-	{
-		.procname	= "fscache",
-		.mode		= 0555,
-		.child		= fscache_sysctls,
-	},
-	{}
+static const __initdata struct ctl_path fscache_path[] = {
+	{ .procname = "fscache" },
+	{ }
 };
+
 #endif
 
 /*
@@ -135,7 +132,7 @@ static int __init fscache_init(void)
 
 #ifdef CONFIG_SYSCTL
 	ret = -ENOMEM;
-	fscache_sysctl_header = register_sysctl_table(fscache_sysctls_root);
+	fscache_sysctl_header = register_sysctl_paths(fscache_path, fscache_table);
 	if (!fscache_sysctl_header)
 		goto error_sysctl;
 #endif
