@@ -234,18 +234,21 @@ static long __vsyscall(3) venosys_1(void)
 }
 
 #ifdef CONFIG_SYSCTL
-static ctl_table kernel_table2[] = {
-	{ .procname = "vsyscall64",
-	  .data = &vsyscall_gtod_data.sysctl_enabled, .maxlen = sizeof(int),
-	  .mode = 0644,
-	  .proc_handler = proc_dointvec },
-	{}
+static ctl_table vsyscall64_table[] = {
+	{
+		.procname = "vsyscall64",
+		.data     = &vsyscall_gtod_data.sysctl_enabled,
+		.maxlen   = sizeof(int),
+		.mode     = 0644,
+		.proc_handler = proc_dointvec,
+	},
+	{ }
 };
 
-static ctl_table kernel_root_table2[] = {
-	{ .procname = "kernel", .mode = 0555,
-	  .child = kernel_table2 },
-	{}
+
+static struct ctl_path kernel_root_path[] = {
+	{ .procname = "kernel" },
+	{ }
 };
 #endif
 
@@ -303,7 +306,7 @@ static int __init vsyscall_init(void)
 	BUG_ON((VSYSCALL_ADDR(0) != __fix_to_virt(VSYSCALL_FIRST_PAGE)));
 	BUG_ON((unsigned long) &vgetcpu != VSYSCALL_ADDR(__NR_vgetcpu));
 #ifdef CONFIG_SYSCTL
-	register_sysctl_table(kernel_root_table2);
+	register_sysctl_paths(kernel_root_path, vsyscall64_table);
 #endif
 	on_each_cpu(cpu_vsyscall_init, NULL, 1);
 	/* notifier priority > KVM */
