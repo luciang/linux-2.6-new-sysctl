@@ -39,19 +39,15 @@ static ctl_table coda_table[] = {
 	{}
 };
 
-static ctl_table fs_table[] = {
-	{
-		.procname	= "coda",
-		.mode		= 0555,
-		.child		= coda_table
-	},
-	{}
+static const __initdata struct ctl_path coda_path[] = {
+	{ .procname = "coda" },
+	{ }
 };
 
 void coda_sysctl_init(void)
 {
 	if ( !fs_table_header )
-		fs_table_header = register_sysctl_table(fs_table);
+		fs_table_header = register_sysctl_paths(coda_path, coda_table);
 }
 
 void coda_sysctl_clean(void)
