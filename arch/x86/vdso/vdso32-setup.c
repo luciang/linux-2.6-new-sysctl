@@ -380,7 +380,7 @@ subsys_initcall(sysenter_setup);
 /* Register vsyscall32 into the ABI table */
 #include <linux/sysctl.h>
 
-static ctl_table abi_table2[] = {
+static ctl_table abi_table[] = {
 	{
 		.procname	= "vsyscall32",
 		.data		= &sysctl_vsyscall32,
@@ -391,18 +391,14 @@ static ctl_table abi_table2[] = {
 	{}
 };
 
-static ctl_table abi_root_table2[] = {
-	{
-		.procname = "abi",
-		.mode = 0555,
-		.child = abi_table2
-	},
-	{}
+static const struct ctl_path abi_root_path[] = {
+	{ .procname = "abi" },
+	{ }
 };
 
 static __init int ia32_binfmt_init(void)
 {
-	register_sysctl_table(abi_root_table2);
+	register_sysctl_paths(abi_root_path, abi_table);
 	return 0;
 }
 __initcall(ia32_binfmt_init);
