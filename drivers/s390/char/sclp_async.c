@@ -106,14 +106,9 @@ static struct ctl_table callhome_table[] = {
 	{}
 };
 
-static struct ctl_table kern_dir_table[] = {
-	{
-		.procname	= "kernel",
-		.maxlen		= 0,
-		.mode		= 0555,
-		.child		= callhome_table,
-	},
-	{}
+static const __initdata struct ctl_path kern_path[] = {
+	{ .procname = "kernel" },
+	{ }
 };
 
 /*
@@ -175,7 +170,7 @@ static int __init sclp_async_init(void)
 	if (!(sclp_async_register.sclp_receive_mask & EVTYP_ASYNC_MASK))
 		goto out_sclp;
 	rc = -ENOMEM;
-	callhome_sysctl_header = register_sysctl_table(kern_dir_table);
+	callhome_sysctl_header = register_sysctl_paths(kern_path, callhome_table);
 	if (!callhome_sysctl_header)
 		goto out_sclp;
 	request = kzalloc(sizeof(struct sclp_req), GFP_KERNEL);
