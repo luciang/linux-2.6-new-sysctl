@@ -668,17 +668,9 @@ static ctl_table ipmi_table[] = {
 	{ }
 };
 
-static ctl_table ipmi_dir_table[] = {
-	{ .procname	= "ipmi",
-	  .mode		= 0555,
-	  .child	= ipmi_table },
-	{ }
-};
-
-static ctl_table ipmi_root_table[] = {
-	{ .procname	= "dev",
-	  .mode		= 0555,
-	  .child	= ipmi_dir_table },
+static const struct ctl_path ipmi_path[] = {
+	{ .procname = "dev" },
+	{ .procname = "ipmi" },
 	{ }
 };
 
@@ -699,7 +691,7 @@ static int __init ipmi_poweroff_init(void)
 		printk(KERN_INFO PFX "Power cycle is enabled.\n");
 
 #ifdef CONFIG_PROC_FS
-	ipmi_table_header = register_sysctl_table(ipmi_root_table);
+	ipmi_table_header = register_sysctl_paths(ipmi_path, ipmi_table);
 	if (!ipmi_table_header) {
 		printk(KERN_ERR PFX "Unable to register powercycle sysctl\n");
 		rv = -ENOMEM;
