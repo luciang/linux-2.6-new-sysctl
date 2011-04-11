@@ -721,33 +721,19 @@ static int hpet_is_known(struct hpet_data *hdp)
 
 static ctl_table hpet_table[] = {
 	{
-	 .procname = "max-user-freq",
-	 .data = &hpet_max_freq,
-	 .maxlen = sizeof(int),
-	 .mode = 0644,
-	 .proc_handler = proc_dointvec,
-	 },
-	{}
+		.procname = "max-user-freq",
+		.data     = &hpet_max_freq,
+		.maxlen   = sizeof(int),
+		.mode     = 0644,
+		.proc_handler = proc_dointvec,
+	},
+	{ }
 };
 
-static ctl_table hpet_root[] = {
-	{
-	 .procname = "hpet",
-	 .maxlen = 0,
-	 .mode = 0555,
-	 .child = hpet_table,
-	 },
-	{}
-};
-
-static ctl_table dev_root[] = {
-	{
-	 .procname = "dev",
-	 .maxlen = 0,
-	 .mode = 0555,
-	 .child = hpet_root,
-	 },
-	{}
+static const struct ctl_path hpet_path[] = {
+	{ .procname = "dev" },
+	{ .procname = "hpet" },
+	{ }
 };
 
 static struct ctl_table_header *sysctl_header;
@@ -1053,7 +1039,7 @@ static int __init hpet_init(void)
 	if (result < 0)
 		return -ENODEV;
 
-	sysctl_header = register_sysctl_table(dev_root);
+	sysctl_header = register_sysctl_paths(hpet_path, hpet_table);
 
 	result = acpi_bus_register_driver(&hpet_acpi_driver);
 	if (result < 0) {
