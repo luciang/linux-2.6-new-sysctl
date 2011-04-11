@@ -34,7 +34,7 @@
 #include "debug.h"
 
 /* Definition of the ntfs sysctl. */
-static ctl_table ntfs_sysctls[] = {
+static ctl_table ntfs_table[] = {
 	{
 		.procname	= "ntfs-debug",
 		.data		= &debug_msgs,		/* Data pointer and size. */
@@ -45,14 +45,9 @@ static ctl_table ntfs_sysctls[] = {
 	{}
 };
 
-/* Define the parent directory /proc/sys/fs. */
-static ctl_table sysctls_root[] = {
-	{
-		.procname	= "fs",
-		.mode		= 0555,
-		.child		= ntfs_sysctls
-	},
-	{}
+static const __initdata struct ctl_path ntfs_path[] = {
+	{ .procname = "fs" },
+	{ }
 };
 
 /* Storage for the sysctls header. */
@@ -68,7 +63,7 @@ int ntfs_sysctl(int add)
 {
 	if (add) {
 		BUG_ON(sysctls_root_table);
-		sysctls_root_table = register_sysctl_table(sysctls_root);
+		sysctls_root_table = register_sysctl_paths(ntfs_path, ntfs_table);
 		if (!sysctls_root_table)
 			return -ENOMEM;
 	} else {
