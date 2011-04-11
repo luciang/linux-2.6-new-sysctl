@@ -21,7 +21,7 @@ static const int nfs_set_port_max = 65535;
 #endif
 static struct ctl_table_header *nfs_callback_sysctl_table;
 
-static ctl_table nfs_cb_sysctls[] = {
+static ctl_table nfs_cb_table[] = {
 #ifdef CONFIG_NFS_V4
 	{
 		.procname = "nfs_callback_tcpport",
@@ -59,27 +59,15 @@ static ctl_table nfs_cb_sysctls[] = {
 	{ }
 };
 
-static ctl_table nfs_cb_sysctl_dir[] = {
-	{
-		.procname = "nfs",
-		.mode = 0555,
-		.child = nfs_cb_sysctls,
-	},
-	{ }
-};
-
-static ctl_table nfs_cb_sysctl_root[] = {
-	{
-		.procname = "fs",
-		.mode = 0555,
-		.child = nfs_cb_sysctl_dir,
-	},
+static const __initdata struct ctl_path nfs_cb_path[] = {
+	{ .procname = "fs" },
+	{ .procname = "nfs" },
 	{ }
 };
 
 int nfs_register_sysctl(void)
 {
-	nfs_callback_sysctl_table = register_sysctl_table(nfs_cb_sysctl_root);
+	nfs_callback_sysctl_table = register_sysctl_paths(nfs_cb_path, nfs_cb_table);
 	if (nfs_callback_sysctl_table == NULL)
 		return -ENOMEM;
 	return 0;
