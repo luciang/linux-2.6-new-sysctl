@@ -38,13 +38,17 @@ EXPORT_SYMBOL_GPL(nlm_debug);
 #ifdef RPC_DEBUG
 
 static struct ctl_table_header *sunrpc_table_header;
-static ctl_table		sunrpc_table[];
+static ctl_table sunrpc_table[];
+static const struct ctl_path sunrpc_path[] = {
+	{ .procname = "sunrpc" },
+	{ }
+};
 
 void
 rpc_register_sysctl(void)
 {
 	if (!sunrpc_table_header)
-		sunrpc_table_header = register_sysctl_table(sunrpc_table);
+		sunrpc_table_header = register_sysctl_paths(sunrpc_path, sunrpc_table);
 }
 
 void
@@ -133,7 +137,7 @@ done:
 }
 
 
-static ctl_table debug_table[] = {
+static ctl_table sunrpc_table[] = {
 	{
 		.procname	= "rpc_debug",
 		.data		= &rpc_debug,
@@ -167,15 +171,6 @@ static ctl_table debug_table[] = {
 		.maxlen		= 256,
 		.mode		= 0444,
 		.proc_handler	= proc_do_xprt,
-	},
-	{ }
-};
-
-static ctl_table sunrpc_table[] = {
-	{
-		.procname	= "sunrpc",
-		.mode		= 0555,
-		.child		= debug_table
 	},
 	{ }
 };
