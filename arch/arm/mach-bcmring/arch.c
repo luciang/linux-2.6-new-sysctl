@@ -55,20 +55,18 @@ static struct ctl_table_header *bcmring_sysctl_header;
 
 static struct ctl_table bcmring_sysctl_warm_reboot[] = {
 	{
-	 .procname = "warm",
-	 .data = &bcmring_arch_warm_reboot,
-	 .maxlen = sizeof(int),
-	 .mode = 0644,
-	 .proc_handler = proc_dointvec},
-	{}
+		.procname = "warm",
+		.data     = &bcmring_arch_warm_reboot,
+		.maxlen   = sizeof(int),
+		.mode     = 0644,
+		.proc_handler = proc_dointvec,
+	},
+	{ }
 };
 
-static struct ctl_table bcmring_sysctl_reboot[] = {
-	{
-	 .procname = "reboot",
-	 .mode = 0555,
-	 .child = bcmring_sysctl_warm_reboot},
-	{}
+static const __initdata struct ctl_path bcmring_sysctl_path[] = {
+	{ .procname = "reboot" },
+	{ }
 };
 
 static struct resource nand_resource[] = {
@@ -117,7 +115,8 @@ static struct platform_device *devices[] __initdata = {
 static void __init bcmring_init_machine(void)
 {
 
-	bcmring_sysctl_header = register_sysctl_table(bcmring_sysctl_reboot);
+	bcmring_sysctl_header = register_sysctl_paths(bcmring_sysctl_path,
+						      bcmring_sysctl_warm_reboot);
 
 	/* Enable spread spectrum */
 	chipcHw_enableSpreadSpectrum();
