@@ -908,27 +908,16 @@ static ctl_table unaligned_table[] = {
 	{}
 };
 
-static ctl_table unaligned_root[] = {
-	{
-		.procname	= "unaligned_fixup",
-		.mode		= 0555,
-		.child		= unaligned_table
-	},
-	{}
+static const __initdata struct ctl_table unaligned_path[] = {
+	{ .procname = "sh64" },
+	{ .procname = "unaligned_fixup" },
+	{ }
 };
 
-static ctl_table sh64_root[] = {
-	{
-		.procname	= "sh64",
-		.mode		= 0555,
-		.child		= unaligned_root
-	},
-	{}
-};
 static struct ctl_table_header *sysctl_header;
 static int __init init_sysctl(void)
 {
-	sysctl_header = register_sysctl_table(sh64_root);
+	sysctl_header = register_sysctl_paths(unaligned_path, unaligned_table);
 	return 0;
 }
 
