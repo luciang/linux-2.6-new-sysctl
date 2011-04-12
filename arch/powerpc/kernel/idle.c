@@ -118,19 +118,16 @@ static ctl_table powersave_nap_ctl_table[]={
 	},
 	{}
 };
-static ctl_table powersave_nap_sysctl_root[] = {
-	{
-		.procname	= "kernel",
-		.mode		= 0555,
-		.child		= powersave_nap_ctl_table,
-	},
-	{}
+
+static const __initdata struct ctl_path powersave_nap_path[] = {
+	{ .procname = "kernel" },
+	{ }
 };
 
 static int __init
 register_powersave_nap_sysctl(void)
 {
-	register_sysctl_table(powersave_nap_sysctl_root);
+	register_sysctl_paths(powersave_nap_path, powersave_nap_ctl_table);
 
 	return 0;
 }
