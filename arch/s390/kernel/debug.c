@@ -902,7 +902,7 @@ static struct ctl_table s390dbf_table[] = {
 		.mode           = S_IRUGO | S_IWUSR,
 		.proc_handler   = proc_dointvec,
 	},
-	 {
+	{
 		.procname       = "debug_active",
 		.data		= &debug_active,
 		.maxlen		= sizeof(int),
@@ -912,13 +912,8 @@ static struct ctl_table s390dbf_table[] = {
 	{ }
 };
 
-static struct ctl_table s390dbf_dir_table[] = {
-	{
-		.procname       = "s390dbf",
-		.maxlen         = 0,
-		.mode           = S_IRUGO | S_IXUGO,
-		.child          = s390dbf_table,
-	},
+static const __initdata struct ctl_path s390dbf_path[] = {
+	{ .procname = "s390dbf" },
 	{ }
 };
 
@@ -1071,7 +1066,7 @@ __init debug_init(void)
 {
 	int rc = 0;
 
-	s390dbf_sysctl_header = register_sysctl_table(s390dbf_dir_table);
+	s390dbf_sysctl_header = register_sysctl_paths(s390dbf_path, s390dbf_table);
 	mutex_lock(&debug_mutex);
 	debug_debugfs_root_entry = debugfs_create_dir(DEBUG_DIR_ROOT,NULL);
 	initialized = 1;
