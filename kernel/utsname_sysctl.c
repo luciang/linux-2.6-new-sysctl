@@ -57,7 +57,7 @@ static int proc_do_uts_string(ctl_table *table, int write,
 #define proc_do_uts_string NULL
 #endif
 
-static struct ctl_table uts_kern_table[] = {
+static struct ctl_table uts_table[] = {
 	{
 		.procname	= "ostype",
 		.data		= init_uts_ns.name.sysname,
@@ -96,18 +96,14 @@ static struct ctl_table uts_kern_table[] = {
 	{}
 };
 
-static struct ctl_table uts_root_table[] = {
-	{
-		.procname	= "kernel",
-		.mode		= 0555,
-		.child		= uts_kern_table,
-	},
-	{}
+static const __initdata struct ctl_path uts_path[] = {
+	{ .procname = "kernel" },
+	{ },
 };
 
 static int __init utsname_sysctl_init(void)
 {
-	register_sysctl_table(uts_root_table);
+	register_sysctl_paths(uts_path, uts_table);
 	return 0;
 }
 
