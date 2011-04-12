@@ -262,21 +262,16 @@ static ctl_table lasat_table[] = {
 	{}
 };
 
-static ctl_table lasat_root_table[] = {
-	{
-		.procname	= "lasat",
-		.mode		=  0555,
-		.child		= lasat_table
-	},
-	{}
+static const __initdata struct ctl_path lasat_path[] = {
+	{ .procname = "lasat" },
+	{ }
 };
 
 static int __init lasat_register_sysctl(void)
 {
 	struct ctl_table_header *lasat_table_header;
 
-	lasat_table_header =
-		register_sysctl_table(lasat_root_table);
+	lasat_table_header = register_sysctl_paths(lasat_path, lasat_table);
 	if (!lasat_table_header) {
 		printk(KERN_ERR "Unable to register LASAT sysctl\n");
 		return -ENOMEM;
