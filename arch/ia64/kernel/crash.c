@@ -255,17 +255,14 @@ static ctl_table kdump_ctl_table[] = {
 	{ }
 };
 
-static ctl_table sys_table[] = {
-	{
-	  .procname = "kernel",
-	  .mode = 0555,
-	  .child = kdump_ctl_table,
-	},
+static const __initdata struct ctl_path kdump_path[] = {
+	{ .procname = "kernel" },
 	{ }
 };
+
 #endif
 
-static int
+static __init int
 machine_crash_setup(void)
 {
 	/* be notified before default_monarch_init_process */
@@ -277,7 +274,7 @@ machine_crash_setup(void)
 	if((ret = register_die_notifier(&kdump_init_notifier_nb)) != 0)
 		return ret;
 #ifdef CONFIG_SYSCTL
-	register_sysctl_table(sys_table);
+	register_sysctl_paths(kdump_path, kdump_ctl_table);
 #endif
 	return 0;
 }
