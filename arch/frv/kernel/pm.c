@@ -329,13 +329,9 @@ static struct ctl_table pm_table[] =
 	{ }
 };
 
-static struct ctl_table pm_dir_table[] =
+static const __initdata struct ctl_path pm_path[] =
 {
-	{
-		.procname	= "pm",
-		.mode		= 0555,
-		.child		= pm_table,
-	},
+	{ .procname = "pm" },
 	{ }
 };
 
@@ -344,7 +340,7 @@ static struct ctl_table pm_dir_table[] =
  */
 static int __init pm_init(void)
 {
-	register_sysctl_table(pm_dir_table);
+	register_sysctl_paths(pm_path, pm_table);
 	return 0;
 }
 
