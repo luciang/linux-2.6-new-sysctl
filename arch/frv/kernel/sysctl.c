@@ -199,14 +199,10 @@ static struct ctl_table frv_table[] =
  * Use a temporary sysctl number. Horrid, but will be cleaned up in 2.6
  * when all the PM interfaces exist nicely.
  */
-static struct ctl_table frv_dir_table[] =
+static const __initdata struct ctl_path frv_path[] =
 {
-	{
-		.procname	= "frv",
-		.mode 		= 0555,
-		.child		= frv_table
-	},
-	{}
+	{ .procname = "frv" },
+	{ }
 };
 
 /*
@@ -214,7 +210,7 @@ static struct ctl_table frv_dir_table[] =
  */
 static int __init frv_sysctl_init(void)
 {
-	register_sysctl_table(frv_dir_table);
+	register_sysctl_paths(frv_path, frv_table);
 	return 0;
 }
 
