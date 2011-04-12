@@ -552,22 +552,13 @@ static ctl_table pfm_ctl_table[]={
 	},
 	{}
 };
-static ctl_table pfm_sysctl_dir[] = {
-	{
-		.procname	= "perfmon",
-		.mode		= 0555,
-		.child		= pfm_ctl_table,
-	},
- 	{}
+
+static const __initdata struct ctl_path pfm_path[] = {
+	{ .procname = "kernel" },
+	{ .procname = "perfmon" },
+	{ }
 };
-static ctl_table pfm_sysctl_root[] = {
-	{
-		.procname	= "kernel",
-		.mode		= 0555,
-		.child		= pfm_sysctl_dir,
-	},
- 	{}
-};
+
 static struct ctl_table_header *pfm_sysctl_header;
 
 static int pfm_context_unload(pfm_context_t *ctx, void *arg, int count, struct pt_regs *regs);
@@ -6687,7 +6678,7 @@ pfm_init(void)
 	/*
 	 * create /proc/sys/kernel/perfmon (for debugging purposes)
 	 */
-	pfm_sysctl_header = register_sysctl_table(pfm_sysctl_root);
+	pfm_sysctl_header = register_sysctl_paths(pfm_path, pfm_ctl_table);
 
 	/*
 	 * initialize all our spinlocks
