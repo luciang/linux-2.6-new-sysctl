@@ -248,6 +248,7 @@ PARPORT_MAX_SPINTIME_VALUE;
 
 struct parport_sysctl_table {
 	struct ctl_table_header *sysctl_header;
+	struct ctl_table_header *devices_sysctl_header;
 	ctl_table vars[12];
 	ctl_table device_dir[2];
 };
@@ -290,11 +291,6 @@ static const struct parport_sysctl_table parport_sysctl_template = {
 			.maxlen		= 0,
 			.mode		= 0444,
 			.proc_handler	= do_hardware_modes
-		},
-		{
-			.procname = "devices",
-			.mode = 0555,
-			.child = NULL, /* child will point to .device_dir */
 		},
 #ifdef CONFIG_PARPORT_1284
 		{
@@ -378,6 +374,14 @@ int parport_proc_register(struct parport *port)
 		{ .procname = port->name },
 		{  },
 	};
+	struct ctl_path parport_port_devices_path[] = {
+		{ .procname = "dev" },
+		{ .procname = "parport" },
+		{ .procname = port->name },
+		{ .procname = "devices" },
+		{  },
+	};
+
 	struct parport_sysctl_table *t;
 	int i;
 
@@ -392,20 +396,29 @@ int parport_proc_register(struct parport *port)
 		t->vars[i].extra1 = port;
 
 	t->vars[0].data = &port->spintime;
-	
-	for (i = 0; i < 5; i++)
-		t->vars[6 + i].extra2 = &port->probe_info[i];
 
-	t->vars[5].child = t->device_dir;
-	/* vars[5].procname is the 'devices' dir entry */
+#ifdef CONFIG_PARPORT_1284
+	for (i = 0; i < 5; i++)
+		t->vars[5 + i].extra2 = &port->probe_info[i];
+#endif /* CONFIG_PARPORT_1284 */
 
 	t->sysctl_header = register_sysctl_paths(parport_port_path, t->vars);
-	if (t->sysctl_header == NULL) {
-		kfree(t);
-		t = NULL;
-	}
+	if (t->sysctl_header == NULL)
+		goto fail_register_port;
+
+	t->devices_sysctl_header = register_sysctl_paths(parport_port_devices_path,
+							 t->device_dir);
+	if (t->devices_sysctl_header == NULL)
+		goto fail_register_devices;
 	port->sysctl_table = t;
 	return 0;
+
+fail_register_devices:
+	unregister_sysctl_table(t->sysctl_header);
+fail_register_port:
+	kfree(t);
+
+	return -ENOMEM;
 }
 
 int parport_proc_unregister(struct parport *port)
@@ -413,6 +426,7 @@ int parport_proc_unregister(struct parport *port)
 	if (port->sysctl_table) {
 		struct parport_sysctl_table *t = port->sysctl_table;
 		port->sysctl_table = NULL;
+		unregister_sysctl_table(t->devices_sysctl_header);
 		unregister_sysctl_table(t->sysctl_header);
 		kfree(t);
 	}
