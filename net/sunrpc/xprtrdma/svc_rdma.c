@@ -118,7 +118,7 @@ static int read_reset_stat(ctl_table *table, int write,
 }
 
 static struct ctl_table_header *svcrdma_table_header;
-static ctl_table svcrdma_parm_table[] = {
+static ctl_table svcrdma_table[] = {
 	{
 		.procname	= "max_requests",
 		.data		= &svcrdma_max_requests,
@@ -213,22 +213,10 @@ static ctl_table svcrdma_parm_table[] = {
 	{ },
 };
 
-static ctl_table svcrdma_table[] = {
-	{
-		.procname	= "svc_rdma",
-		.mode		= 0555,
-		.child		= svcrdma_parm_table
-	},
-	{ },
-};
-
-static ctl_table svcrdma_root_table[] = {
-	{
-		.procname	= "sunrpc",
-		.mode		= 0555,
-		.child		= svcrdma_table
-	},
-	{ },
+static const struct ctl_path svcrdma_path[] = {
+	{ .procname = "sunrpc" },
+	{ .procname = "svc_rdma" },
+	{ }
 };
 
 void svc_rdma_cleanup(void)
@@ -258,8 +246,8 @@ int svc_rdma_init(void)
 		return -ENOMEM;
 
 	if (!svcrdma_table_header)
-		svcrdma_table_header =
-			register_sysctl_table(svcrdma_root_table);
+		svcrdma_table_header = register_sysctl_paths(
+			svcrdma_path, svcrdma_table);
 
 	/* Create the temporary map cache */
 	svc_rdma_map_cachep = kmem_cache_create("svc_rdma_map_cache",
