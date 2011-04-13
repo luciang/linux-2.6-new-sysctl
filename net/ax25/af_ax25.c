@@ -1989,6 +1989,18 @@ static struct notifier_block ax25_dev_notifier = {
 	.notifier_call =ax25_device_event,
 };
 
+
+#ifdef CONFIG_SYSCTL
+static const struct __initdata ctl_path ax25_path[] = {
+	{ .procname = "net" },
+	{ .procname = "ax25" },
+	{ }
+};
+static struct ctl_table empty;
+static struct ctl_table_header *ax25_root_header;
+#endif /* CONFIG_SYSCTL */
+
+
 static int __init ax25_init(void)
 {
 	int rc = proto_register(&ax25_proto, 0);
@@ -1999,7 +2011,11 @@ static int __init ax25_init(void)
 	sock_register(&ax25_family_ops);
 	dev_add_pack(&ax25_packet_type);
 	register_netdevice_notifier(&ax25_dev_notifier);
-	ax25_register_sysctl();
+
+	/* XXX: no error checking done in initializer */
+	#ifdef CONFIG_SYSCTL
+	ax25_root_header = register_sysctl_paths(ax25_path, &empty);
+	#endif
 
 	proc_net_fops_create(&init_net, "ax25_route", S_IRUGO, &ax25_route_fops);
 	proc_net_fops_create(&init_net, "ax25", S_IRUGO, &ax25_info_fops);
@@ -2024,7 +2040,10 @@ static void __exit ax25_exit(void)
 	ax25_uid_free();
 	ax25_dev_free();
 
-	ax25_unregister_sysctl();
+	#ifdef CONFIG_SYSCTL
+	unregister_sysctl_table(ax25_root_header);
+	#endif
+
 	unregister_netdevice_notifier(&ax25_dev_notifier);
 
 	dev_remove_pack(&ax25_packet_type);

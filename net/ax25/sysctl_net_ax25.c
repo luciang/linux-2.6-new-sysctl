@@ -29,17 +29,6 @@ static int min_proto[1],		max_proto[] = { AX25_PROTO_MAX };
 static int min_ds_timeout[1],		max_ds_timeout[] = {65535000};
 #endif
 
-static struct ctl_table_header *ax25_table_header;
-
-static ctl_table *ax25_table;
-static int ax25_table_size;
-
-static struct ctl_path ax25_path[] = {
-	{ .procname = "net", },
-	{ .procname = "ax25", },
-	{ }
-};
-
 static const ctl_table ax25_param_table[] = {
 	{
 		.procname	= "ip_default_mode",
@@ -159,52 +148,37 @@ static const ctl_table ax25_param_table[] = {
 	{ }	/* that's all, folks! */
 };
 
-void ax25_register_sysctl(void)
+void ax25_register_sysctl(struct ax25_dev *ax25_dev)
 {
-	ax25_dev *ax25_dev;
-	int n, k;
+	struct ctl_table *ax25_table;
+	int i;
 
-	spin_lock_bh(&ax25_dev_lock);
-	for (ax25_table_size = sizeof(ctl_table), ax25_dev = ax25_dev_list; ax25_dev != NULL; ax25_dev = ax25_dev->next)
-		ax25_table_size += sizeof(ctl_table);
+	/* Assuming the name does not change while this sysctl
+	 * is registered. If ax25 supports device renaming
+	 * (SIOCSIFNAME), sysctl will need it's own copy of
+	 * the name */
+	struct ctl_path ax25_path[] = {
+		{ .procname = "net" },
+		{ .procname = "ax25" },
+		{ .procname = ax25_dev->dev->name },
+		{ }
+	};
 
-	if ((ax25_table = kzalloc(ax25_table_size, GFP_ATOMIC)) == NULL) {
-		spin_unlock_bh(&ax25_dev_lock);
+
+	ax25_table = kmemdup(ax25_param_table, sizeof(ax25_param_table), GFP_KERNEL);
+	if (!ax25_table)
 		return;
-	}
 
-	for (n = 0, ax25_dev = ax25_dev_list; ax25_dev != NULL; ax25_dev = ax25_dev->next) {
-		struct ctl_table *child = kmemdup(ax25_param_table,
-						  sizeof(ax25_param_table),
-						  GFP_ATOMIC);
-		if (!child) {
-			while (n--)
-				kfree(ax25_table[n].child);
-			kfree(ax25_table);
-			spin_unlock_bh(&ax25_dev_lock);
-			return;
-		}
-		ax25_table[n].child = ax25_dev->systable = child;
-		ax25_table[n].procname     = ax25_dev->dev->name;
-		ax25_table[n].mode         = 0555;
+	for (i = 0; i < AX25_MAX_VALUES; i++)
+		ax25_table[i].data = &ax25_dev->values[i];
 
-
-		for (k = 0; k < AX25_MAX_VALUES; k++)
-			child[k].data = &ax25_dev->values[k];
-
-		n++;
-	}
-	spin_unlock_bh(&ax25_dev_lock);
-
-	ax25_table_header = register_sysctl_paths(ax25_path, ax25_table);
+	ax25_dev->ax25_sysheader = register_sysctl_paths(ax25_path, ax25_table);
 }
 
-void ax25_unregister_sysctl(void)
+void ax25_unregister_sysctl(struct ax25_dev *ax25_dev)
 {
-	ctl_table *p;
-	unregister_sysctl_table(ax25_table_header);
-
-	for (p = ax25_table; p->procname; p++)
-		kfree(p->child);
+	struct ctl_table *ax25_table = ax25_dev->ax25_sysheader->ctl_table_arg;
+	unregister_sysctl_table(ax25_dev->ax25_sysheader);
+	ax25_dev->ax25_sysheader = NULL;
 	kfree(ax25_table);
 }

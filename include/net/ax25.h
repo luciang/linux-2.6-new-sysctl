@@ -215,7 +215,7 @@ typedef struct ax25_dev {
 	struct ax25_dev		*next;
 	struct net_device	*dev;
 	struct net_device	*forward;
-	struct ctl_table	*systable;
+	struct ctl_table_header	*ax25_sysheader;
 	int			values[AX25_MAX_VALUES];
 #if defined(CONFIG_AX25_DAMA_SLAVE) || defined(CONFIG_AX25_DAMA_MASTER)
 	ax25_dama_info		dama;
@@ -441,11 +441,11 @@ extern void ax25_uid_free(void);
 
 /* sysctl_net_ax25.c */
 #ifdef CONFIG_SYSCTL
-extern void ax25_register_sysctl(void);
-extern void ax25_unregister_sysctl(void);
+extern void ax25_register_sysctl(struct ax25_dev *dev);
+extern void ax25_unregister_sysctl(struct ax25_dev *dev);
 #else
-static inline void ax25_register_sysctl(void) {};
-static inline void ax25_unregister_sysctl(void) {};
+static inline void ax25_register_sysctl(struct ax25_dev *dev) {};
+static inline void ax25_unregister_sysctl(struct ax25_dev *dev) {};
 #endif /* CONFIG_SYSCTL */
 
 #endif
