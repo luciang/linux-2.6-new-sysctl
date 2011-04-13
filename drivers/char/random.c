@@ -959,8 +959,15 @@ static void init_std_data(struct entropy_store *r)
 	mix_pool_bytes(r, utsname(), sizeof(*(utsname())));
 }
 
+static int __init register_random_sysctls(void);
+
 static int rand_initialize(void)
 {
+	int rc;
+	rc = register_random_sysctls();
+	if (!rc)
+		return rc;
+
 	init_std_data(&input_pool);
 	init_std_data(&blocking_pool);
 	init_std_data(&nonblocking_pool);
@@ -1250,7 +1257,7 @@ static int proc_do_uuid(ctl_table *table, int write,
 }
 
 static int sysctl_poolsize = INPUT_POOL_WORDS * 32;
-ctl_table random_table[] = {
+static struct ctl_table random_table[] = {
 	{
 		.procname	= "poolsize",
 		.data		= &sysctl_poolsize,
@@ -1298,6 +1305,24 @@ ctl_table random_table[] = {
 	},
 	{ }
 };
+
+static const __initdata struct ctl_path random_path[] = {
+	{ .procname = "kernel" },
+	{ .procname = "random" },
+	{ }
+};
+
+static struct ctl_table_header *random_header;
+
+static int __init register_random_sysctls(void)
+{
+	random_header = register_sysctl_paths(random_path, random_table);
+	if (!random_header)
+		return -ENOMEM;
+	return 0;
+}
+#else /* CONFIG_SYSCTL */
+static int __init register_random_sysctls(void) { return 0; }
 #endif 	/* CONFIG_SYSCTL */
 
 /********************************************************************
