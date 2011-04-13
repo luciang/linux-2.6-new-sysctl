@@ -56,48 +56,49 @@ static struct ctl_table llc_station_table[] = {
 	{ },
 };
 
-static struct ctl_table llc2_dir_timeout_table[] = {
-	{
-		.procname	= "timeout",
-		.mode		= 0555,
-		.child		= llc2_timeout_table,
-	},
-	{ },
-};
 
-static struct ctl_table llc_table[] = {
-	{
-		.procname	= "llc2",
-		.mode		= 0555,
-		.child		= llc2_dir_timeout_table,
-	},
-	{
-		.procname       = "station",
-		.mode           = 0555,
-		.child          = llc_station_table,
-	},
-	{ },
-};
-
-static struct ctl_path llc_path[] = {
+static const __initdata struct ctl_path llc2_timeout_path[] = {
 	{ .procname = "net", },
 	{ .procname = "llc", },
+	{ .procname = "llc2", },
+	{ .procname = "timeout", },
 	{ }
 };
 
-static struct ctl_table_header *llc_table_header;
+static const __initdata struct ctl_path llc_station_path[] = {
+	{ .procname = "net", },
+	{ .procname = "llc", },
+	{ .procname = "station", },
+	{ }
+};
+
+static struct ctl_table_header *llc_station_hdr;
+static struct ctl_table_header *llc2_timeout_hdr;
 
 int __init llc_sysctl_init(void)
 {
-	llc_table_header = register_sysctl_paths(llc_path, llc_table);
+	llc_station_hdr = register_sysctl_paths(llc_station_path, llc_station_table);
+	if (!llc_station_hdr)
+		return -ENOMEM;
 
-	return llc_table_header ? 0 : -ENOMEM;
+	llc2_timeout_hdr = register_sysctl_paths(llc2_timeout_path, llc2_timeout_table);
+	if (!llc2_timeout_hdr) {
+		unregister_sysctl_table(llc_station_hdr);
+		llc_station_hdr = NULL;
+		return -ENOMEM;
+	}
+
+	return 0;
 }
 
 void llc_sysctl_exit(void)
 {
-	if (llc_table_header) {
-		unregister_sysctl_table(llc_table_header);
-		llc_table_header = NULL;
+	if (llc2_timeout_hdr) {
+		unregister_sysctl_table(llc2_timeout_hdr);
+		llc2_timeout_hdr = NULL;
+	}
+	if (llc_station_hdr) {
+		unregister_sysctl_table(llc_station_hdr);
+		llc_station_hdr = NULL;
 	}
 }
