@@ -15,7 +15,7 @@
 
 static const int zero, one = 1, max = INT_MAX;
 
-ctl_table key_sysctls[] = {
+static struct ctl_table key_table[] = {
 	{
 		.procname = "maxkeys",
 		.data = &key_quota_maxkeys,
@@ -63,3 +63,19 @@ ctl_table key_sysctls[] = {
 	},
 	{ }
 };
+
+static const __initdata struct ctl_path key_path[] = {
+	{ .procname = "kernel" },
+	{ .procname = "keys" },
+	{ }
+};
+
+static struct ctl_table_header *key_header;
+
+int __init key_register_sysctls(void)
+{
+	key_header = register_sysctl_paths(key_path, key_table);
+	if (key_header == NULL)
+		return -ENOMEM;
+	return 0;
+}
