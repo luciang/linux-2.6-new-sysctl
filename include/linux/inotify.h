@@ -71,8 +71,6 @@ struct inotify_event {
 #define IN_NONBLOCK O_NONBLOCK
 
 #ifdef __KERNEL__
-#include <linux/sysctl.h>
-extern struct ctl_table inotify_table[]; /* for sysctl */
 
 #define ALL_INOTIFY_BITS (IN_ACCESS | IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE | \
 			  IN_CLOSE_NOWRITE | IN_OPEN | IN_MOVED_FROM | \
