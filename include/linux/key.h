@@ -281,7 +281,9 @@ static inline key_serial_t key_serial(struct key *key)
 				   rwsem_is_locked(&((struct key *)(KEY))->sem)))
 
 #ifdef CONFIG_SYSCTL
-extern ctl_table key_sysctls[];
+extern int __init key_register_sysctls(void);
+#else
+static int __init key_register_sysctls(void) { return 0; }
 #endif
 
 extern void key_replace_session_keyring(void);
