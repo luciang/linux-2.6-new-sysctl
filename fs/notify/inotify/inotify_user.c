@@ -51,13 +51,13 @@ static int inotify_max_user_watches __read_mostly;
 static struct kmem_cache *inotify_inode_mark_cachep __read_mostly;
 struct kmem_cache *event_priv_cachep __read_mostly;
 
-#ifdef CONFIG_SYSCTL
+#if defined(CONFIG_SYSCTL) && defined(CONFIG_MMU)
 
 #include <linux/sysctl.h>
 
 static int zero;
 
-ctl_table inotify_table[] = {
+static struct ctl_table inotify_table[] = {
 	{
 		.procname	= "max_user_instances",
 		.data		= &inotify_max_user_instances,
@@ -84,7 +84,22 @@ ctl_table inotify_table[] = {
 	},
 	{ }
 };
-#endif /* CONFIG_SYSCTL */
+static const __initdata struct ctl_path inotify_path[] = {
+	{ .procname = "fs" },
+	{ .procname = "inotify" },
+	{ }
+};
+static struct ctl_table_header *inotify_header;
+static int __init register_inotify_sysctls(void)
+{
+	inotify_header = register_sysctl_paths(inotify_path, inotify_table);
+	if (inotify_header == NULL)
+		return -ENOMEM;
+	return 0;
+}
+#else /* CONFIG_SYSCTL && CONFIG_MMU */
+static int __init register_inotify_sysctls(void) { return 0; }
+#endif /* CONFIG_SYSCTL && CONFIG_MMU */
 
 static inline __u32 inotify_arg_to_mask(u32 arg)
 {
@@ -862,6 +877,7 @@ static int __init inotify_user_setup(void)
 	inotify_max_user_instances = 128;
 	inotify_max_user_watches = 8192;
 
+	register_inotify_sysctls();
 	return 0;
 }
 module_init(inotify_user_setup);
