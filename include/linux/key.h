@@ -293,9 +293,6 @@ static inline bool key_is_instantiated(const struct key *key)
 	(rcu_dereference_protected((KEY)->payload.rcudata,		\
 				   rwsem_is_locked(&((struct key *)(KEY))->sem)))
 
-#ifdef CONFIG_SYSCTL
-extern ctl_table key_sysctls[];
-#endif
 
 extern void key_replace_session_keyring(void);
 
