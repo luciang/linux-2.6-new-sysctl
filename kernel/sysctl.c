@@ -905,13 +905,6 @@ static struct ctl_table kern_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dostring,
 	},
-#ifdef CONFIG_KEYS
-	{
-		.procname	= "keys",
-		.mode		= 0555,
-		.child		= key_sysctls,
-	},
-#endif
 #ifdef CONFIG_RCU_TORTURE_TEST
 	{
 		.procname       = "rcutorture_runnable",
