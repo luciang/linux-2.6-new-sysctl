@@ -246,14 +246,14 @@ static struct kmem_cache *epi_cache __read_mostly;
 /* Slab cache used to allocate "struct eppoll_entry" */
 static struct kmem_cache *pwq_cache __read_mostly;
 
-#ifdef CONFIG_SYSCTL
+#if defined(CONFIG_SYSCTL) && defined (CONFIG_MMU)
 
 #include <linux/sysctl.h>
 
 static long zero;
 static long long_max = LONG_MAX;
 
-ctl_table epoll_table[] = {
+static struct ctl_table epoll_table[] = {
 	{
 		.procname	= "max_user_watches",
 		.data		= &max_user_watches,
@@ -265,7 +265,22 @@ ctl_table epoll_table[] = {
 	},
 	{ }
 };
-#endif /* CONFIG_SYSCTL */
+static const __initdata struct ctl_path epoll_path[] = {
+	{ .procname = "fs" },
+	{ .procname = "epoll" },
+	{ }
+};
+static struct ctl_table_header *epoll_header;
+static int __init register_epoll_sysctls(void)
+{
+	epoll_header = register_sysctl_paths(epoll_path, epoll_table);
+	if (epoll_header == NULL)
+		return -ENOMEM;
+	return 0;
+}
+#else  /* CONFIG_SYSCTL && CONFIG_MMU */
+static int __init register_epoll_sysctls(void) { return 0; }
+#endif /* CONFIG_SYSCTL && CONFIG_MMU */
 
 
 /* Setup the structure that is used as key for the RB tree */
@@ -1586,6 +1601,7 @@ static int __init eventpoll_init(void)
 	pwq_cache = kmem_cache_create("eventpoll_pwq",
 			sizeof(struct eppoll_entry), 0, SLAB_PANIC, NULL);
 
+	register_epoll_sysctls();
 	return 0;
 }
 fs_initcall(eventpoll_init);
