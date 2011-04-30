@@ -2818,7 +2818,13 @@ int neigh_sysctl_register(struct net_device *dev, struct neigh_parms *p,
 		{ .procname = "net",	 },
 		{ .procname = "proto",	 },
 		{ .procname = "neigh",	 },
-		{ .procname = "default", },
+		{
+			/* will be set to device name (NEIGH_CTL_PATH_DEV) */
+			.procname = "default",
+			/* skip duplicate name check; we're registering
+			 * just one subheader for this directory */
+			.has_just_one_subheader = 1,
+		},
 		{ },
 	};
 
