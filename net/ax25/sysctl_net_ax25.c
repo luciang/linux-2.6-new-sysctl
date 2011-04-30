@@ -160,7 +160,13 @@ void ax25_register_sysctl(struct ax25_dev *ax25_dev)
 	struct ctl_path ax25_path[] = {
 		{ .procname = "net" },
 		{ .procname = "ax25" },
-		{ .procname = ax25_dev->dev->name },
+		{
+			.procname = ax25_dev->dev->name,
+			/* skip duplicate name check; we're registering
+			 * just one subheader for this directory */
+			.has_just_one_subheader = 1,
+
+		},
 		{ }
 	};
 
