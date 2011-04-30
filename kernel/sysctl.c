@@ -56,7 +56,6 @@
 #include <linux/kprobes.h>
 #include <linux/pipe_fs_i.h>
 #include <linux/oom.h>
-#include <linux/rwsem.h>
 
 #include <asm/uaccess.h>
 #include <asm/processor.h>
@@ -1616,29 +1615,24 @@ struct ctl_table_header *sysctl_use_netns_corresp(struct ctl_table_header *h)
 }
 
 
-/* This semaphore protects the ctl_subdirs and ctl_tables lists. You
- * must also have incremented the _use_refs of the header before
- * accessing any field of the header including these lists. If it's
- * deemed necessary, we can create a per-header rwsem. For now a
- * global one will do. */
-static DECLARE_RWSEM(sysctl_rwsem);
+/* protection for the headers' ctl_subdirs/ctl_tables lists */
+static DEFINE_SPINLOCK(sysctl_list_lock);
 void sysctl_write_lock_head(struct ctl_table_header *head)
 {
-	down_write(&sysctl_rwsem);
+	spin_lock(&sysctl_list_lock);
 }
 void sysctl_write_unlock_head(struct ctl_table_header *head)
 {
-	up_write(&sysctl_rwsem);
+	spin_unlock(&sysctl_list_lock);
 }
 void sysctl_read_lock_head(struct ctl_table_header *head)
 {
-	down_read(&sysctl_rwsem);
+	rcu_read_lock();
 }
 void sysctl_read_unlock_head(struct ctl_table_header *head)
 {
-	up_read(&sysctl_rwsem);
+	rcu_read_unlock();
 }
-
 
 /*
  * sysctl_perm does NOT grant the superuser all rights automatically, because
@@ -1777,6 +1771,7 @@ static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *grou
 	h->ctl_table_arg = NULL;
 	h->unregistering = NULL;
 	h->ctl_group = group;
+	INIT_LIST_HEAD(&h->ctl_entry);
 
 	return h;
 }
@@ -1788,7 +1783,7 @@ static struct ctl_table_header *mkdir_existing_dir(struct ctl_table_header *pare
 						   const char *name)
 {
 	struct ctl_table_header *h;
-	list_for_each_entry(h, &parent->ctl_subdirs, ctl_entry) {
+	list_for_each_entry_rcu(h, &parent->ctl_subdirs, ctl_entry) {
 		spin_lock(&sysctl_lock);
 		if (likely(!h->unregistering)) {
 			if (strcmp(name, h->ctl_dirname) == 0) {
@@ -1844,7 +1839,7 @@ static struct ctl_table_header *mkdir_new_dir(struct ctl_table_header *parent,
 {
 	dir->parent = parent;
 	header_refs_inc(dir);
-	list_add_tail(&dir->ctl_entry, &parent->ctl_subdirs);
+	list_add_tail_rcu(&dir->ctl_entry, &parent->ctl_subdirs);
 	return dir;
 }
 
@@ -2049,7 +2044,7 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 	failed_duplicate_check = sysctl_check_duplicates(header);
 #endif
 	if (!failed_duplicate_check)
-		list_add_tail(&header->ctl_entry, &header->parent->ctl_tables);
+		list_add_tail_rcu(&header->ctl_entry, &header->parent->ctl_tables);
 
 	sysctl_write_unlock_head(header->parent);
 
@@ -2119,14 +2114,14 @@ void unregister_sysctl_table(struct ctl_table_header *header)
 			 * specific ctl_table_group list. For not that
 			 * list is protected by sysctl_lock. */
 			spin_lock(&sysctl_lock);
-			list_del_init(&header->ctl_entry);
+			list_del_rcu(&header->ctl_entry);
 			spin_unlock(&sysctl_lock);
 		} else {
 			/* ctl_entry is a member of the parent's
 			 * ctl_tables/subdirs lists which are
 			 * protected by the parent's write lock. */
 			sysctl_write_lock_head(parent);
-			list_del_init(&header->ctl_entry);
+			list_del_rcu(&header->ctl_entry);
 			sysctl_write_unlock_head(parent);
 		}
 
