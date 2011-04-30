@@ -6250,7 +6250,13 @@ static void register_sched_domain_sysctl(void)
 		{ .procname = "kernel" },
 		{ .procname = "sched_domain" },
 		{ /* 'cpu0' */ },
-		{ /* 'domain0' */ },
+		{
+			/* 'domain0' */
+			.procname = NULL,
+			/* skip duplicate name check; we're registering
+			 * just one subheader for this directory */
+			.has_just_one_subheader = 1,
+		},
 		{  },
 	};
 
