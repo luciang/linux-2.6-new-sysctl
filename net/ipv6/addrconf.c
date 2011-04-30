@@ -4486,7 +4486,13 @@ static int __addrconf_sysctl_register(struct net *net, char *dev_name,
 		{ .procname = "net", },
 		{ .procname = "ipv6", },
 		{ .procname = "conf", },
-		{ /* to be set */ },
+		{
+			/* to be set bellow (ADDRCONF_CTL_PATH_DEV) */
+			.procname = NULL,
+			/* skip duplicate name check; we're registering
+			 * just one subheader for this directory */
+			.has_just_one_subheader = 1,
+		},
 		{ },
 	};
 
