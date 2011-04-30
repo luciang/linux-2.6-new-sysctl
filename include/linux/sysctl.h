@@ -1083,6 +1083,37 @@ struct ctl_table_header {
 /* struct ctl_path describes where in the hierarchy a table is added */
 struct ctl_path {
 	const char *procname;
+
+
+	/* This is an optimisation for registering paths that you know
+	 * will be used to register a single table. Because such
+	 * directories will be used only once, sysctl will always
+	 * create an entry for it when it sees it.
+	 *
+	 * When sysctl registers a table, for each directory that may
+	 * be used while registering other tables we do a linear
+	 * search to see if it's already added, and, if not, add it
+	 * ourselves.
+	 *
+	 * For example: each netdevice will register a single table
+	 * under /proc/sys/net/ipv4/conf/DEVNAME/.
+	 *
+	 * The 'DEVNAME' component of the path is not used to register
+	 * other headers, and we can optimise adding that directory:
+	 * we don't have to check if it's already registered.
+	 *
+	 * This will have a positive performance impact when
+	 * registering many such directories because we're doing a
+	 * O(nr of sibling directories) search. With
+	 * @has_just_one_subheader=1 set we skip that search and add
+	 * the directory directly because we know no other sibling
+	 * directory with the same name was registered.
+	 *
+	 * NOTE: in this example setting @has_just_one_subheader=1 for
+	 * the 'conf' ctl_path would be wrong because it's used when
+	 * registering other subheaders too (e.g. subheaders for other
+	 * netdevices). */
+	int has_just_one_subheader;
 };
 
 extern struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *g,
