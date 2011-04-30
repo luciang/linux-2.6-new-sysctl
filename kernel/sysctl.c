@@ -1896,11 +1896,13 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 	retry:
 		sysctl_write_lock_head(parent);
 
-		h = mkdir_existing_dir(parent, dirs[i]->dirname);
-		if (h != NULL) {
-			sysctl_write_unlock_head(parent);
-			parent = h;
-			continue;
+		if (!path[i].has_just_one_subheader) {
+			h = mkdir_existing_dir(parent, dirs[i]->dirname);
+			if (h != NULL) {
+				sysctl_write_unlock_head(parent);
+				parent = h;
+				continue;
+			}
 		}
 
 		if (likely(!create_first_netns_corresp)) {
