@@ -1,5 +1,6 @@
 #include <linux/sysctl.h>
 #include <linux/string.h>
+#include <linux/rculist.h>
 
 /*
  * @path: the path to the offender
@@ -118,7 +119,7 @@ int sysctl_check_duplicates(struct ctl_table_header *header)
 	struct ctl_table_header *dir = header->parent;
 	struct ctl_table_header *h;
 
-	list_for_each_entry(h, &dir->ctl_subdirs, ctl_entry) {
+	list_for_each_entry_rcu(h, &dir->ctl_subdirs, ctl_entry) {
 		if (IS_ERR(sysctl_fs_get(h)))
 			continue;
 
@@ -130,7 +131,7 @@ int sysctl_check_duplicates(struct ctl_table_header *header)
 		sysctl_fs_put(h);
 	}
 
-	list_for_each_entry(h, &dir->ctl_tables, ctl_entry) {
+	list_for_each_entry_rcu(h, &dir->ctl_tables, ctl_entry) {
 		ctl_table *t;
 
 		if (IS_ERR(sysctl_fs_get(h)))

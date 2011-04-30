@@ -1491,26 +1491,24 @@ static struct ctl_table dev_table[] = {
 static DEFINE_SPINLOCK(sysctl_lock);
 
 
-/* if it's deemed necessary, we can create a per-header rwsem. For now
- * a global one will do. */
-static DECLARE_RWSEM(sysctl_rwsem);
+/* protection for the headers' ctl_subdirs/ctl_tables lists */
+static DEFINE_SPINLOCK(sysctl_list_lock);
 void sysctl_write_lock_head(struct ctl_table_header *head)
 {
-	down_write(&sysctl_rwsem);
+	spin_lock(&sysctl_list_lock);
 }
 void sysctl_write_unlock_head(struct ctl_table_header *head)
 {
-	up_write(&sysctl_rwsem);
+	spin_unlock(&sysctl_list_lock);
 }
 void sysctl_read_lock_head(struct ctl_table_header *head)
 {
-	down_read(&sysctl_rwsem);
+	rcu_read_lock();
 }
 void sysctl_read_unlock_head(struct ctl_table_header *head)
 {
-	up_read(&sysctl_rwsem);
+	rcu_read_unlock();
 }
-
 
 
 /* called under sysctl_lock, will reacquire if has to wait */
@@ -1768,6 +1766,7 @@ static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *grou
 	h->ctl_table_arg = NULL;
 	h->unregistering = NULL;
 	h->ctl_group = group;
+	INIT_LIST_HEAD(&h->ctl_entry);
 
 	return h;
 }
@@ -1779,7 +1778,7 @@ static struct ctl_table_header *mkdir_existing_dir(struct ctl_table_header *pare
 						   const char *name)
 {
 	struct ctl_table_header *h;
-	list_for_each_entry(h, &parent->ctl_subdirs, ctl_entry) {
+	list_for_each_entry_rcu(h, &parent->ctl_subdirs, ctl_entry) {
 		if (IS_ERR(sysctl_fs_get(h)))
 			continue;
 		if (strcmp(name, h->dirname) == 0) {
@@ -1834,7 +1833,7 @@ static struct ctl_table_header *mkdir_new_dir(struct ctl_table_header *parent,
 {
 	dir->parent = parent;
 	header_refs_inc(dir);
-	list_add_tail(&dir->ctl_entry, &parent->ctl_subdirs);
+	list_add_tail_rcu(&dir->ctl_entry, &parent->ctl_subdirs);
 	return dir;
 }
 
@@ -2028,7 +2027,7 @@ struct ctl_table_header *__register_sysctl_paths(
 	failed_duplicate_check = sysctl_check_duplicates(header);
 #endif
 	if (!failed_duplicate_check)
-		list_add_tail(&header->ctl_entry, &header->parent->ctl_tables);
+		list_add_tail_rcu(&header->ctl_entry, &header->parent->ctl_tables);
 
 	sysctl_write_unlock_head(header->parent);
 
@@ -2081,7 +2080,7 @@ void unregister_sysctl_table(struct ctl_table_header *header)
 		spin_lock(&sysctl_lock);
 		if (!--header->header_refs) {
 			start_unregistering(header);
-			list_del_init(&header->ctl_entry);
+			list_del_rcu(&header->ctl_entry);
 			if (!header->proc_inode_refs)
 				call_rcu(&header->rcu, free_head);
 		}
