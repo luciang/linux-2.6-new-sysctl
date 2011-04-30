@@ -81,7 +81,7 @@ retry:
 	sysctl_read_lock_head(head);
 
 	/* first check whether a subdirectory has the searched-for name */
-	list_for_each_entry(h, &head->ctl_subdirs, ctl_entry) {
+	list_for_each_entry_rcu(h, &head->ctl_subdirs, ctl_entry) {
 		if (IS_ERR(sysctl_use_header(h)))
 			continue;
 
@@ -93,7 +93,7 @@ retry:
 	}
 
 	/* no subdir with that name, look for the file in the ctl_tables */
-	list_for_each_entry(h, &head->ctl_tables, ctl_entry) {
+	list_for_each_entry_rcu(h, &head->ctl_tables, ctl_entry) {
 		if (IS_ERR(sysctl_use_header(h)))
 			continue;
 
@@ -234,7 +234,7 @@ static int scan(struct ctl_table_header *head,
 
 	sysctl_read_lock_head(head);
 
-	list_for_each_entry(h, &head->ctl_subdirs, ctl_entry) {
+	list_for_each_entry_rcu(h, &head->ctl_subdirs, ctl_entry) {
 		if (*pos < file->f_pos) {
 			(*pos)++;
 			continue;
@@ -252,7 +252,7 @@ static int scan(struct ctl_table_header *head,
 		(*pos)++;
 	}
 
-	list_for_each_entry(h, &head->ctl_tables, ctl_entry) {
+	list_for_each_entry_rcu(h, &head->ctl_tables, ctl_entry) {
 		ctl_table *t;
 
 		if (IS_ERR(sysctl_use_header(h)))

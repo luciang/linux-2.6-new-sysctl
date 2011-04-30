@@ -1,5 +1,6 @@
 #include <linux/sysctl.h>
 #include <linux/string.h>
+#include <linux/rculist.h>
 
 /*
  * @path: the path to the offender
@@ -124,7 +125,7 @@ int sysctl_check_duplicates(struct ctl_table_header *header)
 	struct ctl_table_header *dir = header->parent;
 	struct ctl_table_header *h;
 
-	list_for_each_entry(h, &dir->ctl_subdirs, ctl_entry) {
+	list_for_each_entry_rcu(h, &dir->ctl_subdirs, ctl_entry) {
 		if (IS_ERR(sysctl_use_header(h)))
 			continue;
 
@@ -136,7 +137,7 @@ int sysctl_check_duplicates(struct ctl_table_header *header)
 		sysctl_unuse_header(h);
 	}
 
-	list_for_each_entry(h, &dir->ctl_tables, ctl_entry) {
+	list_for_each_entry_rcu(h, &dir->ctl_tables, ctl_entry) {
 		ctl_table *t;
 
 		if (IS_ERR(sysctl_use_header(h)))
@@ -188,7 +189,7 @@ int sysctl_check_netns_correspondents(struct ctl_table_header *header,
 	/* see if the netns_correspondent has a subdir
 	 * with the same as this non-netns specific header */
 	sysctl_read_lock_head(netns_corresp);
-	list_for_each_entry(h, &netns_corresp->ctl_subdirs, ctl_entry) {
+	list_for_each_entry_rcu(h, &netns_corresp->ctl_subdirs, ctl_entry) {
 		if (IS_ERR(sysctl_use_header(h)))
 			continue;
 		if (strcmp(header->ctl_dirname, h->ctl_dirname) == 0) {
