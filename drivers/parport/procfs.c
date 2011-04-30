@@ -442,7 +442,12 @@ int parport_device_proc_register(struct pardevice *device)
 		{ .procname = "parport" },
 		{ .procname = port->name },
 		{ .procname = "devices" },
-		{ .procname = device->name },
+		{
+			.procname = device->name,
+			/* skip duplicate name check; we're registering
+			 * just one subheader for this directory */
+			.has_just_one_subheader = 1,
+		},
 		{  },
 	};
 
