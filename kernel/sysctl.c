@@ -1572,14 +1572,14 @@ static void start_unregistering(struct ctl_table_header *p)
 	list_del_init(&p->ctl_entry);
 }
 
-void sysctl_head_get(struct ctl_table_header *head)
+void sysctl_proc_inode_get(struct ctl_table_header *head)
 {
 	spin_lock(&sysctl_lock);
 	head->ctl_procfs_refs++;
 	spin_unlock(&sysctl_lock);
 }
 
-void sysctl_head_put(struct ctl_table_header *head)
+void sysctl_proc_inode_put(struct ctl_table_header *head)
 {
 	spin_lock(&sysctl_lock);
 	head->ctl_procfs_refs--;
@@ -2210,7 +2210,7 @@ void setup_sysctl_set(struct ctl_table_set *p,
 {
 }
 
-void sysctl_head_put(struct ctl_table_header *head)
+void sysctl_proc_inode_put(struct ctl_table_header *head)
 {
 }
 
