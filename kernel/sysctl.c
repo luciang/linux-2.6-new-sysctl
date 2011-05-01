@@ -1494,14 +1494,14 @@ static int use_table(struct ctl_table_header *p)
 {
 	if (unlikely(p->unregistering))
 		return 0;
-	p->used++;
+	p->ctl_use_refs++;
 	return 1;
 }
 
 /* called under sysctl_lock */
 static void unuse_table(struct ctl_table_header *p)
 {
-	if (!--p->used)
+	if (!--p->ctl_use_refs)
 		if (unlikely(p->unregistering))
 			complete(p->unregistering);
 }
@@ -1510,10 +1510,10 @@ static void unuse_table(struct ctl_table_header *p)
 static void start_unregistering(struct ctl_table_header *p)
 {
 	/*
-	 * if p->used is 0, nobody will ever touch that entry again;
+	 * if p->ctl_use_refs is 0, nobody will ever touch that entry again;
 	 * we'll eliminate all paths to it before dropping sysctl_lock
 	 */
-	if (unlikely(p->used)) {
+	if (unlikely(p->ctl_use_refs)) {
 		struct completion wait;
 		init_completion(&wait);
 		p->unregistering = &wait;
@@ -1875,7 +1875,6 @@ struct ctl_table_header *__register_sysctl_paths(
 	header->ctl_table_arg = table;
 
 	INIT_LIST_HEAD(&header->ctl_entry);
-	header->used = 0;
 	header->unregistering = NULL;
 	header->root = root;
 	header->count = 1;
