@@ -26,7 +26,7 @@ static struct inode *proc_sys_make_inode(struct super_block *sb,
 
 	inode->i_ino = get_next_ino();
 
-	sysctl_head_get(head);
+	sysctl_proc_inode_get(head);
 	ei = PROC_I(inode);
 	ei->sysctl = head;
 	ei->sysctl_entry = table;
