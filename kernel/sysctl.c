@@ -1716,7 +1716,7 @@ static void sysctl_set_parent(struct ctl_table *parent, struct ctl_table *table)
 	}
 }
 
-static __init int sysctl_init(void)
+__init int sysctl_init(void)
 {
 	sysctl_set_parent(NULL, root_table);
 #ifdef CONFIG_SYSCTL_SYSCALL_CHECK
@@ -1724,8 +1724,6 @@ static __init int sysctl_init(void)
 #endif
 	return 0;
 }
-
-core_initcall(sysctl_init);
 
 static struct ctl_table *is_branch_in(struct ctl_table *branch,
 				      struct ctl_table *table)
