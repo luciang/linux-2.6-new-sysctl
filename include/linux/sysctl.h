@@ -943,6 +943,8 @@ struct ctl_table_set {
 	int (*is_seen)(struct ctl_table_set *);
 };
 
+extern __init int sysctl_init(void);
+
 extern void setup_sysctl_set(struct ctl_table_set *p,
 	struct ctl_table_set *parent,
 	int (*is_seen)(struct ctl_table_set *));
