@@ -1043,7 +1043,9 @@ struct ctl_table_header
 		struct {
 			struct ctl_table *ctl_table;
 			struct list_head ctl_entry;
-			int used;
+			/* references to this header from contexts that
+			 * can access fields of this header */
+			int ctl_use_refs;
 			int count;
 		};
 		struct rcu_head rcu;
