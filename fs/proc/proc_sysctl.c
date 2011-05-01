@@ -57,24 +57,11 @@ out:
 	return inode;
 }
 
-static struct ctl_table *find_in_table(struct ctl_table *p, struct qstr *name)
+static struct ctl_table *find_in_table(struct ctl_table *p, const char *name)
 {
-	int len;
-	for ( ; p->procname; p++) {
-
-		if (!p->procname)
-			continue;
-
-		len = strlen(p->procname);
-		if (len != name->len)
-			continue;
-
-		if (memcmp(p->procname, name->name, len) != 0)
-			continue;
-
-		/* I have a match */
-		return p;
-	}
+	for ( ; p->procname; p++)
+		if (strcmp(p->procname, name) == 0)
+			return p;
 	return NULL;
 }
 
@@ -92,7 +79,7 @@ static struct dentry *proc_sys_lookup(struct inode *dir, struct dentry *dentry,
 	struct ctl_table_header *head = grab_header(dir);
 	struct ctl_table *table = PROC_I(dir)->sysctl_entry;
 	struct ctl_table_header *h = NULL;
-	struct qstr *name = &dentry->d_name;
+	const char *name = dentry->d_name.name;
 	struct ctl_table *p;
 	struct inode *inode;
 	struct dentry *err = ERR_PTR(-ENOENT);
