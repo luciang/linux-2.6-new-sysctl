@@ -42,7 +42,7 @@ static void proc_evict_inode(struct inode *inode)
 	head = PROC_I(inode)->sysctl;
 	if (head) {
 		rcu_assign_pointer(PROC_I(inode)->sysctl, NULL);
-		sysctl_head_put(head);
+		sysctl_proc_inode_put(head);
 	}
 }
 
