@@ -1587,7 +1587,7 @@ lookup_header_list(struct ctl_table_root *root, struct nsproxy *namespaces)
 	return &set->list;
 }
 
-struct ctl_table_header *__sysctl_head_next(struct nsproxy *namespaces,
+struct ctl_table_header *__sysctl_use_next_header(struct nsproxy *namespaces,
 					    struct ctl_table_header *prev)
 {
 	struct ctl_table_root *root;
@@ -1631,9 +1631,9 @@ out:
 	return NULL;
 }
 
-struct ctl_table_header *sysctl_head_next(struct ctl_table_header *prev)
+struct ctl_table_header *sysctl_use_next_header(struct ctl_table_header *prev)
 {
-	return __sysctl_head_next(current->nsproxy, prev);
+	return __sysctl_use_next_header(current->nsproxy, prev);
 }
 
 void register_sysctl_root(struct ctl_table_root *root)

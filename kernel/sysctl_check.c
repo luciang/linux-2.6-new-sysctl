@@ -28,8 +28,8 @@ static struct ctl_table *sysctl_check_lookup(struct nsproxy *namespaces,
 	struct ctl_table *ref, *test;
 	int cur_depth;
 
-	for (head = __sysctl_head_next(namespaces, NULL); head;
-	     head = __sysctl_head_next(namespaces, head)) {
+	for (head = __sysctl_use_next_header(namespaces, NULL); head;
+	     head = __sysctl_use_next_header(namespaces, head)) {
 		cur_depth = depth;
 		ref = head->ctl_table;
 repeat:
