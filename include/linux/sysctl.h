@@ -1046,7 +1046,13 @@ struct ctl_table_header
 			/* references to this header from contexts that
 			 * can access fields of this header */
 			int ctl_use_refs;
-			int count;
+			/* references to this header from procfs inodes.
+			 * procfs embeds a pointer to the header in proc_inode */
+			int ctl_procfs_refs;
+			/* counts references to this header from other
+			 * headers (through ->parent) plus the reference
+			 * returned by __register_sysctl_paths */
+			int ctl_header_refs;
 		};
 		struct rcu_head rcu;
 	};
