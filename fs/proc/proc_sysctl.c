@@ -64,10 +64,7 @@ static struct ctl_table *find_in_table(struct ctl_table *p, struct qstr *name)
 
 static struct ctl_table_header *grab_header(struct inode *inode)
 {
-	if (PROC_I(inode)->sysctl)
-		return sysctl_head_grab(PROC_I(inode)->sysctl);
-	else
-		return sysctl_head_next(NULL);
+	return sysctl_head_grab(PROC_I(inode)->sysctl);
 }
 
 static struct dentry *proc_sys_lookup(struct inode *dir, struct dentry *dentry,
