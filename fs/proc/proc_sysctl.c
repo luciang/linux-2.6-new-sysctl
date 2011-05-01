@@ -85,7 +85,7 @@ static struct dentry *proc_sys_lookup(struct inode *dir, struct dentry *dentry,
 
 	p = find_in_table(table, name);
 	if (!p) {
-		for (h = sysctl_head_next(NULL); h; h = sysctl_head_next(h)) {
+		for (h = sysctl_use_next_header(NULL); h; h = sysctl_use_next_header(h)) {
 			if (h->attached_to != table)
 				continue;
 			p = find_in_table(h->attached_by, name);
@@ -265,7 +265,7 @@ static int proc_sys_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	if (ret)
 		goto out;
 
-	for (h = sysctl_head_next(NULL); h; h = sysctl_head_next(h)) {
+	for (h = sysctl_use_next_header(NULL); h; h = sysctl_use_next_header(h)) {
 		if (h->attached_to != table)
 			continue;
 		ret = scan(h, h->attached_by, &pos, filp, dirent, filldir);
