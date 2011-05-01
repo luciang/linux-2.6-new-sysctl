@@ -599,6 +599,7 @@ asmlinkage void __init start_kernel(void)
 	fork_init(totalram_pages);
 	proc_caches_init();
 	buffer_init();
+	sysctl_init();
 	key_init();
 	security_init();
 	dbg_late_init();
