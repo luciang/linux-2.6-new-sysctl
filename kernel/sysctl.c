@@ -200,7 +200,7 @@ static int sysrq_sysctl_handler(ctl_table *table, int write,
 static struct ctl_table root_table[];
 static struct ctl_table_root sysctl_table_root;
 static struct ctl_table_header root_table_header = {
-	{{.count = 1,
+	{{.ctl_header_refs = 1,
 	.ctl_table = root_table,
 	.ctl_entry = LIST_HEAD_INIT(sysctl_table_root.default_set.list),}},
 	.root = &sysctl_table_root,
@@ -1554,7 +1554,7 @@ static void start_unregistering(struct ctl_table_header *p)
 void sysctl_head_get(struct ctl_table_header *head)
 {
 	spin_lock(&sysctl_lock);
-	head->count++;
+	head->ctl_procfs_refs++;
 	spin_unlock(&sysctl_lock);
 }
 
@@ -1566,7 +1566,8 @@ static void free_head(struct rcu_head *rcu)
 void sysctl_head_put(struct ctl_table_header *head)
 {
 	spin_lock(&sysctl_lock);
-	if (!--head->count)
+	head->ctl_procfs_refs--;
+	if ((head->ctl_procfs_refs == 0) && (head->ctl_header_refs == 0))
 		call_rcu(&head->rcu, free_head);
 	spin_unlock(&sysctl_lock);
 }
@@ -1877,7 +1878,7 @@ struct ctl_table_header *__register_sysctl_paths(
 	INIT_LIST_HEAD(&header->ctl_entry);
 	header->unregistering = NULL;
 	header->root = root;
-	header->count = 1;
+	header->ctl_header_refs = 1;
 #ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 	if (sysctl_check_table(namespaces, header->ctl_table)) {
 		kfree(header);
@@ -1897,7 +1898,7 @@ struct ctl_table_header *__register_sysctl_paths(
 			try_attach(p, header);
 		}
 	}
-	header->parent->count++;
+	header->parent->ctl_header_refs++;
 	list_add_tail(&header->ctl_entry, &header->set->list);
 	spin_unlock(&sysctl_lock);
 
@@ -1937,12 +1938,14 @@ void unregister_sysctl_table(struct ctl_table_header * header)
 
 	spin_lock(&sysctl_lock);
 	start_unregistering(header);
-	if (!--header->parent->count) {
+	if (!--header->parent->ctl_header_refs) {
 		WARN_ON(1);
-		call_rcu(&header->parent->rcu, free_head);
+		if (!header->parent->ctl_procfs_refs)
+			call_rcu(&header->parent->rcu, free_head);
 	}
-	if (!--header->count)
-		call_rcu(&header->rcu, free_head);
+	if (!--header->ctl_header_refs)
+		if (!header->ctl_procfs_refs)
+			call_rcu(&header->rcu, free_head);
 	spin_unlock(&sysctl_lock);
 }
 
