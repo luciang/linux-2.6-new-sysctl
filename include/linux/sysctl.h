@@ -951,8 +951,11 @@ extern void setup_sysctl_set(struct ctl_table_set *p,
 
 struct ctl_table_header;
 
-extern void sysctl_head_get(struct ctl_table_header *);
-extern void sysctl_head_put(struct ctl_table_header *);
+/* get/put a reference to this header that
+ * will be/was embedded in a procfs proc_inode */
+extern void sysctl_proc_inode_get(struct ctl_table_header *);
+extern void sysctl_proc_inode_put(struct ctl_table_header *);
+
 extern int sysctl_is_seen(struct ctl_table_header *);
 extern struct ctl_table_header *sysctl_use_header(struct ctl_table_header *);
 extern struct ctl_table_header *sysctl_use_next_header(struct ctl_table_header *prev);
