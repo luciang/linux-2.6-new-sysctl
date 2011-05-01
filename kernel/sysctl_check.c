@@ -55,7 +55,7 @@ repeat:
 	}
 	ref = NULL;
 out:
-	sysctl_head_finish(head);
+	sysctl_unuse_header(head);
 	return ref;
 }
 
