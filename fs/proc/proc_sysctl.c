@@ -65,15 +65,10 @@ static struct ctl_table *find_in_table(struct ctl_table *p, const char *name)
 	return NULL;
 }
 
-static struct ctl_table_header *grab_header(struct inode *inode)
-{
-	return sysctl_head_grab(PROC_I(inode)->sysctl);
-}
-
 static struct dentry *proc_sys_lookup(struct inode *dir, struct dentry *dentry,
 					struct nameidata *nd)
 {
-	struct ctl_table_header *head = grab_header(dir);
+	struct ctl_table_header *head = sysctl_head_grab(PROC_I(dir)->sysctl);
 	struct ctl_table *table = PROC_I(dir)->sysctl_entry;
 	struct ctl_table_header *h = NULL;
 	const char *name = dentry->d_name.name;
@@ -126,7 +121,7 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 		size_t count, loff_t *ppos, int write)
 {
 	struct inode *inode = filp->f_path.dentry->d_inode;
-	struct ctl_table_header *head = grab_header(inode);
+	struct ctl_table_header *head = sysctl_head_grab(PROC_I(inode)->sysctl);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
 	ssize_t error;
 	size_t res;
@@ -270,7 +265,7 @@ static int proc_sys_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
 	struct dentry *dentry = filp->f_path.dentry;
 	struct inode *inode = dentry->d_inode;
-	struct ctl_table_header *head = grab_header(inode);
+	struct ctl_table_header *head = sysctl_head_grab(PROC_I(inode)->sysctl);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
 	struct ctl_table_header *h = NULL;
 	unsigned long pos;
@@ -335,7 +330,7 @@ static int proc_sys_permission(struct inode *inode, int mask)
 	if ((mask & MAY_EXEC) && S_ISREG(inode->i_mode))
 		return -EACCES;
 
-	head = grab_header(inode);
+	head = sysctl_head_grab(PROC_I(inode)->sysctl);
 	if (IS_ERR(head))
 		return PTR_ERR(head);
 
@@ -376,7 +371,7 @@ static int proc_sys_setattr(struct dentry *dentry, struct iattr *attr)
 static int proc_sys_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 {
 	struct inode *inode = dentry->d_inode;
-	struct ctl_table_header *head = grab_header(inode);
+	struct ctl_table_header *head = sysctl_head_grab(PROC_I(inode)->sysctl);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
 
 	if (IS_ERR(head))
