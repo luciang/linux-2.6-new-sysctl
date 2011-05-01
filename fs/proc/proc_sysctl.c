@@ -52,18 +52,12 @@ static struct ctl_table *find_in_table(struct ctl_table *p, struct qstr *name)
 	int len;
 	for ( ; p->procname; p++) {
 
-		if (!p->procname)
-			continue;
-
 		len = strlen(p->procname);
 		if (len != name->len)
 			continue;
 
-		if (memcmp(p->procname, name->name, len) != 0)
-			continue;
-
-		/* I have a match */
-		return p;
+		if (memcmp(p->procname, name->name, len) == 0)
+			return p;
 	}
 	return NULL;
 }
