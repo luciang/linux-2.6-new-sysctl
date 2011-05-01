@@ -1506,6 +1506,26 @@ static void unuse_table(struct ctl_table_header *p)
 			complete(p->unregistering);
 }
 
+struct ctl_table_header *sysctl_use_header(struct ctl_table_header *head)
+{
+	if (!head)
+		head = &root_table_header;
+	spin_lock(&sysctl_lock);
+	if (!use_table(head))
+		head = ERR_PTR(-ENOENT);
+	spin_unlock(&sysctl_lock);
+	return head;
+}
+
+void sysctl_unuse_header(struct ctl_table_header *head)
+{
+	if (!head)
+		return;
+	spin_lock(&sysctl_lock);
+	unuse_table(head);
+	spin_unlock(&sysctl_lock);
+}
+
 /* called under sysctl_lock, will reacquire if has to wait */
 static void start_unregistering(struct ctl_table_header *p)
 {
@@ -1548,26 +1568,6 @@ void sysctl_head_put(struct ctl_table_header *head)
 	spin_lock(&sysctl_lock);
 	if (!--head->count)
 		call_rcu(&head->rcu, free_head);
-	spin_unlock(&sysctl_lock);
-}
-
-struct ctl_table_header *sysctl_head_grab(struct ctl_table_header *head)
-{
-	if (!head)
-		head = &root_table_header;
-	spin_lock(&sysctl_lock);
-	if (!use_table(head))
-		head = ERR_PTR(-ENOENT);
-	spin_unlock(&sysctl_lock);
-	return head;
-}
-
-void sysctl_head_finish(struct ctl_table_header *head)
-{
-	if (!head)
-		return;
-	spin_lock(&sysctl_lock);
-	unuse_table(head);
 	spin_unlock(&sysctl_lock);
 }
 
