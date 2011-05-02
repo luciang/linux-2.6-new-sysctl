@@ -937,18 +937,12 @@ struct ctl_table;
 struct ctl_table_header;
 struct ctl_table_group;
 struct ctl_table_group_ops;
-struct nsproxy;
-struct ctl_table_root;
-
-struct ctl_table_set {
-	struct list_head list;
-	struct ctl_table_set *parent;
-};
 
 extern __init int sysctl_init(void);
 
-extern void setup_sysctl_set(struct ctl_table_set *p,
-			     struct ctl_table_set *parent);
+extern void sysctl_init_group(struct ctl_table_group *group,
+			      const struct ctl_table_group_ops *ops,
+			      int has_netns_corresp);
 
 
 /* get/put a reference to this header that
@@ -957,13 +951,22 @@ extern void sysctl_proc_inode_get(struct ctl_table_header *);
 extern void sysctl_proc_inode_put(struct ctl_table_header *);
 
 extern int sysctl_is_seen(struct ctl_table_header *);
-extern struct ctl_table_header *sysctl_use_header(struct ctl_table_header *);
-extern struct ctl_table_header *sysctl_use_next_header(struct ctl_table_header *prev);
-extern struct ctl_table_header *__sysctl_use_next_header(struct nsproxy *namespaces,
-						struct ctl_table_header *prev);
-extern void sysctl_unuse_header(struct ctl_table_header *prev);
 extern int sysctl_perm(struct ctl_table_group *group,
 		       struct ctl_table *table, int op);
+
+/* proctect the ctl_subdirs/ctl_tables lists */
+extern void sysctl_write_lock_head(struct ctl_table_header *head);
+extern void sysctl_write_unlock_head(struct ctl_table_header *head);
+extern void sysctl_read_lock_head(struct ctl_table_header *head);
+extern void sysctl_read_unlock_head(struct ctl_table_header *head);
+
+/* get/put references to this header with the pourpose of using it's internals.
+ * As long as the use count is not zero, there may be items accessing it,
+ * so we can't even remove it from the lists (ctl_entry). */
+extern struct ctl_table_header *sysctl_use_header(struct ctl_table_header *);
+extern struct ctl_table_header *sysctl_use_netns_corresp(struct ctl_table_header *);
+extern void sysctl_unuse_header(struct ctl_table_header *prev);
+
 
 typedef struct ctl_table ctl_table;
 
@@ -991,39 +994,29 @@ extern int proc_do_large_bitmap(struct ctl_table *, int,
 
 /*
  * Register a set of sysctl names by calling __register_sysctl_paths
- * with an initialised array of struct ctl_table's.  An entry with 
- * NULL procname terminates the table.  table->de will be
- * set up by the registration and need not be initialised in advance.
- *
- * sysctl names can be mirrored automatically under /proc/sys.  The
- * procname supplied controls /proc naming.
+ * with an initialised array of struct ctl_table's. An entry with a
+ * NULL procname terminates the table.
  *
  * The table's mode will be honoured both for sys_sysctl(2) and
- * proc-fs access.
+ * proc-fs access (sys_sysctl(2) uses procfs internally).
  *
- * Leaf nodes in the sysctl tree will be represented by a single file
- * under /proc; non-leaf nodes will be represented by directories.  A
- * null procname disables /proc mirroring at this node.
+ * Only files can be represented by ctl_table elements. Directories
+ * are implemented with ctl_table_header objects.
  *
- * sysctl(2) can automatically manage read and write requests through
- * the sysctl table.  The data and maxlen fields of the ctl_table
- * struct enable minimal validation of the values being written to be
- * performed, and the mode field allows minimal authentication.
- * 
- * There must be a proc_handler routine for any terminal nodes
- * mirrored under /proc/sys (non-terminals are handled by a built-in
- * directory handler).  Several default handlers are available to
- * cover common cases.
+ * The data and maxlen fields of the ctl_table struct enable minimal
+ * validation of the values being written to be performed, and the
+ * mode field allows minimal authentication.
+ *
+ * There must be a proc_handler routine for each ctl_table node.
+ * Several default handlers are available to cover common cases.
  */
 
 /* A sysctl table is an array of struct ctl_table: */
-struct ctl_table 
-{
+struct ctl_table {
 	const char *procname;		/* Text ID for /proc/sys, or zero */
 	void *data;
 	int maxlen;
 	mode_t mode;
-	struct ctl_table *child;
 	proc_handler *proc_handler;	/* Callback for text formatting */
 	void *extra1;
 	void *extra2;
@@ -1035,8 +1028,8 @@ struct ctl_table_group_ops {
 	 * netns in which that eth0 interface lives.
 	 *
 	 * If this hook is not set, then all the sysctl entries in
-	 * this set are always visible. */
-	int (*is_seen)(struct ctl_table_set *set);
+	 * this group are always visible. */
+	int (*is_seen)(struct ctl_table_group *group);
 
 	/* hook to alter permissions for some sysctl nodes at runtime */
 	int (*permissions)(struct ctl_table *table);
@@ -1044,22 +1037,24 @@ struct ctl_table_group_ops {
 
 struct ctl_table_group {
 	const struct ctl_table_group_ops *ctl_ops;
-};
-
-struct ctl_table_root {
-	struct list_head root_list;
-	struct ctl_table_set default_set;
-	struct ctl_table_set *(*lookup)(struct ctl_table_root *root,
-					   struct nsproxy *namespaces);
+	/* A list of ctl_table_header elements that represent the
+	 * netns-specific correspondents of some sysctl directories */
+	struct list_head corresp_list;
+	/* binary: whether this group uses the @corresp_list */
+	char has_netns_corresp;
 };
 
 /* struct ctl_table_header is used to maintain dynamic lists of
    struct ctl_table trees. */
-struct ctl_table_header
-{
+struct ctl_table_header {
 	union {
 		struct {
-			struct ctl_table *ctl_table;
+			/* a header is used either as a wraper for a
+			 * ctl_table array or as directory entry. */
+			union {
+				struct ctl_table *ctl_table_arg;
+				const char *ctl_dirname;
+			};
 			struct list_head ctl_entry;
 			/* references to this header from contexts that
 			 * can access fields of this header */
@@ -1075,12 +1070,13 @@ struct ctl_table_header
 		struct rcu_head rcu;
 	};
 	struct completion *unregistering;
-	struct ctl_table *ctl_table_arg;
-	struct ctl_table_root *root;
 	struct ctl_table_group *ctl_group;
-	struct ctl_table_set *set;
-	struct ctl_table *attached_by;
-	struct ctl_table *attached_to;
+
+	/* Lists of other ctl_table_headers that represent either
+	 * subdirectories or ctl_tables of files. Add/remove and walk
+	 * this list holding the header's read/write lock. */
+	struct list_head ctl_tables;
+	struct list_head ctl_subdirs;
 	struct ctl_table_header *parent;
 };
 
@@ -1089,18 +1085,12 @@ struct ctl_path {
 	const char *procname;
 };
 
-void register_sysctl_root(struct ctl_table_root *root);
-struct ctl_table_header *__register_sysctl_paths(
-	struct ctl_table_root *root,
-	struct ctl_table_group *group,
-	struct nsproxy *namespaces,
-	const struct ctl_path *path,
-	struct ctl_table *table);
-struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
-						struct ctl_table *table);
-
-void unregister_sysctl_table(struct ctl_table_header * table);
-int sysctl_check_table(struct nsproxy *namespaces, struct ctl_table *table);
+extern struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *g,
+							const struct ctl_path *p,
+							struct ctl_table *table);
+extern struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
+						      struct ctl_table *table);
+extern void unregister_sysctl_table(struct ctl_table_header *table);
 
 #endif /* __KERNEL__ */
 
