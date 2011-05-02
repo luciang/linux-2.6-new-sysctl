@@ -200,6 +200,10 @@ static int sysrq_sysctl_handler(ctl_table *table, int write,
 /* uses default ops */
 static const struct ctl_table_group_ops root_table_group_ops = { };
 
+static struct ctl_table_group root_table_group = {
+	.ctl_ops = &root_table_group_ops,
+};
+
 static struct ctl_table root_table[];
 static struct ctl_table_root sysctl_table_root;
 static struct ctl_table_header root_table_header = {
@@ -207,11 +211,11 @@ static struct ctl_table_header root_table_header = {
 	.ctl_table = root_table,
 	.ctl_entry = LIST_HEAD_INIT(sysctl_table_root.default_set.list),}},
 	.root = &sysctl_table_root,
+	.ctl_group = &root_table_group,
 	.set = &sysctl_table_root.default_set,
 };
 
 static struct ctl_table_root sysctl_table_root = {
-	.ctl_ops = &root_table_group_ops,
 	.root_list = LIST_HEAD_INIT(sysctl_table_root.root_list),
 	.default_set.list = LIST_HEAD_INIT(root_table_header.ctl_entry),
 };
@@ -1664,10 +1668,10 @@ static int test_perm(int mode, int op)
 	return -EACCES;
 }
 
-int sysctl_perm(const struct ctl_table_group_ops *ops,
-		struct ctl_table *table, int op)
+int sysctl_perm(struct ctl_table_group *group, struct ctl_table *table, int op)
 {
 	int mode;
+	const struct ctl_table_group_ops *ops = group->ctl_ops;
 
 	if (ops->permissions)
 		mode = ops->permissions(table);
@@ -1838,6 +1842,7 @@ static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
  */
 struct ctl_table_header *__register_sysctl_paths(
 	struct ctl_table_root *root,
+	struct ctl_table_group *group,
 	struct nsproxy *namespaces,
 	const struct ctl_path *path, struct ctl_table *table)
 {
@@ -1883,6 +1888,7 @@ struct ctl_table_header *__register_sysctl_paths(
 	INIT_LIST_HEAD(&header->ctl_entry);
 	header->unregistering = NULL;
 	header->root = root;
+	header->ctl_group = group;
 	header->ctl_header_refs = 1;
 #ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 	if (sysctl_check_table(namespaces, header->ctl_table)) {
@@ -1923,8 +1929,8 @@ struct ctl_table_header *__register_sysctl_paths(
 struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table)
 {
-	return __register_sysctl_paths(&sysctl_table_root, current->nsproxy,
-					path, table);
+	return __register_sysctl_paths(&sysctl_table_root, &root_table_group,
+				       current->nsproxy, path, table);
 }
 
 /**
@@ -1956,7 +1962,7 @@ void unregister_sysctl_table(struct ctl_table_header * header)
 
 int sysctl_is_seen(struct ctl_table_header *p)
 {
-	const struct ctl_table_group_ops *ops = p->root->ctl_ops;
+	const struct ctl_table_group_ops *ops = p->ctl_group->ctl_ops;
 	int res;
 	spin_lock(&sysctl_lock);
 	if (p->unregistering)
