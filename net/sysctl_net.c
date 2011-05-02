@@ -51,12 +51,17 @@ static int net_ctl_permissions(struct ctl_table *table)
 	return table->mode;
 }
 
-static struct ctl_table_root net_sysctl_root = {
-	.lookup = net_ctl_header_lookup,
+static const struct ctl_table_group_ops net_sysctl_group_ops = {
+	.is_seen = is_seen,
 	.permissions = net_ctl_permissions,
 };
 
-static int net_ctl_ro_header_perms(ctl_table *table)
+static struct ctl_table_root net_sysctl_root = {
+	.lookup = net_ctl_header_lookup,
+	.ctl_ops = &net_sysctl_group_ops,
+};
+
+static int net_ctl_ro_header_permissions(ctl_table *table)
 {
 	if (net_eq(current->nsproxy->net_ns, &init_net))
 		return table->mode;
@@ -64,15 +69,18 @@ static int net_ctl_ro_header_perms(ctl_table *table)
 		return table->mode & ~0222;
 }
 
+static const struct ctl_table_group_ops net_sysctl_ro_group_ops = {
+	.permissions = net_ctl_ro_header_permissions,
+};
+
 static struct ctl_table_root net_sysctl_ro_root = {
-	.permissions = net_ctl_ro_header_perms,
+	.ctl_ops = &net_sysctl_ro_group_ops,
 };
 
 static int __net_init sysctl_net_init(struct net *net)
 {
 	setup_sysctl_set(&net->sysctls,
-			 &net_sysctl_ro_root.default_set,
-			 is_seen);
+			 &net_sysctl_ro_root.default_set);
 	return 0;
 }
 
@@ -93,7 +101,7 @@ static __init int net_sysctl_init(void)
 	if (ret)
 		goto out;
 	register_sysctl_root(&net_sysctl_root);
-	setup_sysctl_set(&net_sysctl_ro_root.default_set, NULL, NULL);
+	setup_sysctl_set(&net_sysctl_ro_root.default_set, NULL);
 	register_sysctl_root(&net_sysctl_ro_root);
 out:
 	return ret;

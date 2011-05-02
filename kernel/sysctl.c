@@ -197,6 +197,9 @@ static int sysrq_sysctl_handler(ctl_table *table, int write,
 
 #endif
 
+/* uses default ops */
+static const struct ctl_table_group_ops root_table_group_ops = { };
+
 static struct ctl_table root_table[];
 static struct ctl_table_root sysctl_table_root;
 static struct ctl_table_header root_table_header = {
@@ -206,7 +209,9 @@ static struct ctl_table_header root_table_header = {
 	.root = &sysctl_table_root,
 	.set = &sysctl_table_root.default_set,
 };
+
 static struct ctl_table_root sysctl_table_root = {
+	.ctl_ops = &root_table_group_ops,
 	.root_list = LIST_HEAD_INIT(sysctl_table_root.root_list),
 	.default_set.list = LIST_HEAD_INIT(root_table_header.ctl_entry),
 };
@@ -1659,12 +1664,13 @@ static int test_perm(int mode, int op)
 	return -EACCES;
 }
 
-int sysctl_perm(struct ctl_table_root *root, struct ctl_table *table, int op)
+int sysctl_perm(const struct ctl_table_group_ops *ops,
+		struct ctl_table *table, int op)
 {
 	int mode;
 
-	if (root->permissions)
-		mode = root->permissions(table);
+	if (ops->permissions)
+		mode = ops->permissions(table);
 	else
 		mode = table->mode;
 
@@ -1950,26 +1956,24 @@ void unregister_sysctl_table(struct ctl_table_header * header)
 
 int sysctl_is_seen(struct ctl_table_header *p)
 {
-	struct ctl_table_set *set = p->set;
+	const struct ctl_table_group_ops *ops = p->root->ctl_ops;
 	int res;
 	spin_lock(&sysctl_lock);
 	if (p->unregistering)
 		res = 0;
-	else if (!set->is_seen)
+	else if (!ops->is_seen)
 		res = 1;
 	else
-		res = set->is_seen(set);
+		res = ops->is_seen(p->set);
 	spin_unlock(&sysctl_lock);
 	return res;
 }
 
 void setup_sysctl_set(struct ctl_table_set *p,
-	struct ctl_table_set *parent,
-	int (*is_seen)(struct ctl_table_set *))
+		      struct ctl_table_set *parent)
 {
 	INIT_LIST_HEAD(&p->list);
 	p->parent = parent ? parent : &sysctl_table_root.default_set;
-	p->is_seen = is_seen;
 }
 
 #else /* !CONFIG_SYSCTL */
@@ -1984,8 +1988,7 @@ void unregister_sysctl_table(struct ctl_table_header * table)
 }
 
 void setup_sysctl_set(struct ctl_table_set *p,
-	struct ctl_table_set *parent,
-	int (*is_seen)(struct ctl_table_set *))
+		      struct ctl_table_set *parent)
 {
 }
 
