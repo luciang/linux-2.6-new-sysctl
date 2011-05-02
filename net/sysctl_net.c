@@ -56,9 +56,12 @@ static const struct ctl_table_group_ops net_sysctl_group_ops = {
 	.permissions = net_ctl_permissions,
 };
 
+static struct ctl_table_group net_sysctl_group = {
+	.ctl_ops = &net_sysctl_group_ops,
+};
+
 static struct ctl_table_root net_sysctl_root = {
 	.lookup = net_ctl_header_lookup,
-	.ctl_ops = &net_sysctl_group_ops,
 };
 
 static int net_ctl_ro_header_permissions(ctl_table *table)
@@ -73,9 +76,11 @@ static const struct ctl_table_group_ops net_sysctl_ro_group_ops = {
 	.permissions = net_ctl_ro_header_permissions,
 };
 
-static struct ctl_table_root net_sysctl_ro_root = {
+static struct ctl_table_group net_sysctl_ro_group = {
 	.ctl_ops = &net_sysctl_ro_group_ops,
 };
+
+static struct ctl_table_root net_sysctl_ro_root = { };
 
 static int __net_init sysctl_net_init(struct net *net)
 {
@@ -114,7 +119,7 @@ struct ctl_table_header *register_net_sysctl_table(struct net *net,
 	struct nsproxy namespaces;
 	namespaces = *current->nsproxy;
 	namespaces.net_ns = net;
-	return __register_sysctl_paths(&net_sysctl_root,
+	return __register_sysctl_paths(&net_sysctl_root, &net_sysctl_group,
 					&namespaces, path, table);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table);
@@ -122,7 +127,7 @@ EXPORT_SYMBOL_GPL(register_net_sysctl_table);
 struct ctl_table_header *register_net_sysctl_rotable(const
 		struct ctl_path *path, struct ctl_table *table)
 {
-	return __register_sysctl_paths(&net_sysctl_ro_root,
+	return __register_sysctl_paths(&net_sysctl_ro_root, &net_sysctl_ro_group,
 			&init_nsproxy, path, table);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_rotable);
