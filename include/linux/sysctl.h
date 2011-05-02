@@ -935,22 +935,22 @@ enum
 
 /* For the /proc/sys support */
 struct ctl_table;
+struct ctl_table_header;
+struct ctl_table_group;
+struct ctl_table_group_ops;
 struct nsproxy;
 struct ctl_table_root;
 
 struct ctl_table_set {
 	struct list_head list;
 	struct ctl_table_set *parent;
-	int (*is_seen)(struct ctl_table_set *);
 };
 
 extern __init int sysctl_init(void);
 
 extern void setup_sysctl_set(struct ctl_table_set *p,
-	struct ctl_table_set *parent,
-	int (*is_seen)(struct ctl_table_set *));
+			     struct ctl_table_set *parent);
 
-struct ctl_table_header;
 
 /* get/put a reference to this header that
  * will be/was embedded in a procfs proc_inode */
@@ -963,8 +963,8 @@ extern struct ctl_table_header *sysctl_use_next_header(struct ctl_table_header *
 extern struct ctl_table_header *__sysctl_use_next_header(struct nsproxy *namespaces,
 						struct ctl_table_header *prev);
 extern void sysctl_unuse_header(struct ctl_table_header *prev);
-extern int sysctl_perm(struct ctl_table_root *root,
-		struct ctl_table *table, int op);
+extern int sysctl_perm(struct ctl_table_group *group,
+		       struct ctl_table *table, int op);
 
 typedef struct ctl_table ctl_table;
 
@@ -1051,12 +1051,28 @@ struct ctl_table
 	void *extra2;
 };
 
+struct ctl_table_group_ops {
+	/* some sysctl entries are visible only in some situations.
+	 * E.g.: /proc/sys/net/ipv4/conf/eth0/ is only visible in the
+	 * netns in which that eth0 interface lives.
+	 *
+	 * If this hook is not set, then all the sysctl entries in
+	 * this set are always visible. */
+	int (*is_seen)(struct ctl_table_set *set);
+
+	/* hook to alter permissions for some sysctl nodes at runtime */
+	int (*permissions)(struct ctl_table *table);
+};
+
+struct ctl_table_group {
+	const struct ctl_table_group_ops *ctl_ops;
+};
+
 struct ctl_table_root {
 	struct list_head root_list;
 	struct ctl_table_set default_set;
 	struct ctl_table_set *(*lookup)(struct ctl_table_root *root,
 					   struct nsproxy *namespaces);
-	int (*permissions)(struct ctl_table *table);
 };
 
 /* struct ctl_table_header is used to maintain dynamic lists of
@@ -1083,6 +1099,7 @@ struct ctl_table_header
 	struct completion *unregistering;
 	struct ctl_table *ctl_table_arg;
 	struct ctl_table_root *root;
+	struct ctl_table_group *ctl_group;
 	struct ctl_table_set *set;
 	struct ctl_table *attached_by;
 	struct ctl_table *attached_to;
@@ -1103,8 +1120,11 @@ struct ctl_path {
 
 void register_sysctl_root(struct ctl_table_root *root);
 struct ctl_table_header *__register_sysctl_paths(
-	struct ctl_table_root *root, struct nsproxy *namespaces,
-	const struct ctl_path *path, struct ctl_table *table);
+	struct ctl_table_root *root,
+	struct ctl_table_group *group,
+	struct nsproxy *namespaces,
+	const struct ctl_path *path,
+	struct ctl_table *table);
 struct ctl_table_header *register_sysctl_table(struct ctl_table * table);
 struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table);
