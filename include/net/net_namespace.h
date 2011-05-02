@@ -52,7 +52,7 @@ struct net {
 	struct proc_dir_entry 	*proc_net_stat;
 
 #ifdef CONFIG_SYSCTL
-	struct ctl_table_set	sysctls;
+	struct ctl_table_group	netns_ctl_group;
 #endif
 
 	struct sock 		*rtnl;			/* rtnetlink socket */
