@@ -1552,11 +1552,6 @@ static void start_unregistering(struct ctl_table_header *p)
 		/* anything non-NULL; we'll never dereference it */
 		p->unregistering = ERR_PTR(-EINVAL);
 	}
-	/*
-	 * do not remove from the list until nobody holds it; walking the
-	 * list in do_sysctl() relies on that.
-	 */
-	list_del_init(&p->ctl_entry);
 }
 
 void sysctl_proc_inode_get(struct ctl_table_header *head)
@@ -1949,6 +1944,13 @@ void unregister_sysctl_table(struct ctl_table_header * header)
 
 	spin_lock(&sysctl_lock);
 	start_unregistering(header);
+
+	/* after start_unregistering has finished no one holds a
+	 * ctl_use_refs or is able to acquire one => no one is going
+	 * to access internal fields of this object, so we can remove
+	 * it from the list and schedule it for deletion. */
+	list_del_init(&p->ctl_entry);
+
 	if (!--header->parent->ctl_header_refs) {
 		WARN_ON(1);
 		if (!header->parent->ctl_procfs_refs)
