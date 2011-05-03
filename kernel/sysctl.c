@@ -1490,16 +1490,16 @@ static struct ctl_table dev_table[] = {
 static DEFINE_SPINLOCK(sysctl_lock);
 
 /* called under sysctl_lock */
-static int use_table(struct ctl_table_header *p)
+static struct ctl_table_header *__sysctl_use_header(struct ctl_table_header *head)
 {
-	if (unlikely(p->unregistering))
-		return 0;
-	p->ctl_use_refs++;
-	return 1;
+	if (unlikely(head->unregistering))
+		return ERR_PTR(-ENOENT);
+	head->ctl_use_refs++;
+	return head;
 }
 
 /* called under sysctl_lock */
-static void unuse_table(struct ctl_table_header *p)
+static void __sysctl_unuse_header(struct ctl_table_header *p)
 {
 	if (!--p->ctl_use_refs)
 		if (unlikely(p->unregistering))
@@ -1511,8 +1511,7 @@ struct ctl_table_header *sysctl_use_header(struct ctl_table_header *head)
 	if (!head)
 		head = &root_table_header;
 	spin_lock(&sysctl_lock);
-	if (!use_table(head))
-		head = ERR_PTR(-ENOENT);
+	head = __sysctl_use_header(head);
 	spin_unlock(&sysctl_lock);
 	return head;
 }
@@ -1522,7 +1521,7 @@ void sysctl_unuse_header(struct ctl_table_header *head)
 	if (!head)
 		return;
 	spin_lock(&sysctl_lock);
-	unuse_table(head);
+	__sysctl_unuse_header(head);
 	spin_unlock(&sysctl_lock);
 }
 
@@ -1600,14 +1599,14 @@ struct ctl_table_header *__sysctl_use_next_header(struct nsproxy *namespaces,
 	if (prev) {
 		head = prev;
 		tmp = &prev->ctl_entry;
-		unuse_table(prev);
+		__sysctl_unuse_header(prev);
 		goto next;
 	}
 	tmp = &root_table_header.ctl_entry;
 	for (;;) {
 		head = list_entry(tmp, struct ctl_table_header, ctl_entry);
 
-		if (!use_table(head))
+		if (IS_ERR(__sysctl_use_header(head)))
 			goto next;
 		spin_unlock(&sysctl_lock);
 		return head;
