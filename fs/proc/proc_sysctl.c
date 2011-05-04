@@ -20,13 +20,15 @@ static struct inode *proc_sys_make_inode(struct super_block *sb,
 	struct inode *inode;
 	struct proc_inode *ei;
 
+	if (sysctl_proc_inode_get(head))
+		goto err_get;
+
 	inode = new_inode(sb);
 	if (!inode)
-		goto out;
+		goto err_new_inode;
 
 	inode->i_ino = get_next_ino();
 
-	sysctl_proc_inode_get(head);
 	ei = PROC_I(inode);
 	ei->sysctl = head;
 	ei->sysctl_entry = table;
@@ -44,8 +46,12 @@ static struct inode *proc_sys_make_inode(struct super_block *sb,
 		inode->i_op = &proc_sys_dir_operations;
 		inode->i_fop = &proc_sys_dir_file_operations;
 	}
-out:
 	return inode;
+
+err_new_inode:
+	sysctl_proc_inode_put(head);
+err_get:
+	return NULL;
 }
 
 static struct ctl_table *find_in_table(struct ctl_table *p, struct qstr *name)
