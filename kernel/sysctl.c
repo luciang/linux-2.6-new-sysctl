@@ -1941,6 +1941,8 @@ err_alloc_dir:
 
 }
 
+
+static void unregister_sysctl_table_impl(struct ctl_table_header * header);
 /**
  * __register_sysctl_paths - register a sysctl hierarchy
  * @group: Group of sysctl headers to register on
@@ -1995,7 +1997,13 @@ struct ctl_table_header *__register_sysctl_paths_impl(struct ctl_table_group *gr
 	const struct ctl_path *path, struct ctl_table *table)
 {
 	struct ctl_table_header *header;
+	int failed_duplicate_check = 0;
 	int nr_dirs = ctl_path_items(path);
+
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+	if (sysctl_check_table(path, nr_dirs, table))
+		return NULL;
+#endif
 
 	header = alloc_sysctl_header(group);
 	if (!header)
@@ -2011,8 +2019,19 @@ struct ctl_table_header *__register_sysctl_paths_impl(struct ctl_table_group *gr
 	header->ctl_header_refs = 1;
 
 	sysctl_write_lock_head(header->parent);
-	list_add_tail(&header->ctl_entry, &header->parent->ctl_tables);
+
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+	failed_duplicate_check = sysctl_check_duplicates(header);
+#endif
+	if (!failed_duplicate_check)
+		list_add_tail(&header->ctl_entry, &header->parent->ctl_tables);
+
 	sysctl_write_unlock_head(header->parent);
+
+	if (failed_duplicate_check) {
+		unregister_sysctl_table_impl(header);
+		return NULL;
+	}
 
 	return header;
 }
@@ -2037,8 +2056,6 @@ static int count_subheaders(struct ctl_table *table)
 	return nr_subheaders + has_files;
 }
 
-
-static void unregister_sysctl_table_impl(struct ctl_table_header * header);
 
 static int
 register_headers_as_leafs(struct ctl_path *path, int path_depth,
