@@ -29,6 +29,8 @@ int sysctl_check_table(const struct ctl_path *path,
 		       struct ctl_table *table)
 {
 	struct ctl_table *t;
+	unsigned int max_bits, max_files;
+	unsigned int nr_files = 0;
 	int error = 0;
 
 	if (nr_dirs > CTL_MAXNAME - 1) {
@@ -37,6 +39,7 @@ int sysctl_check_table(const struct ctl_path *path,
 	}
 
 	for(t = table; t->procname; t++) {
+		nr_files ++;
 		if ((t->proc_handler == proc_dostring) ||
 		    (t->proc_handler == proc_dointvec) ||
 		    (t->proc_handler == proc_dointvec_minmax) ||
@@ -57,6 +60,15 @@ int sysctl_check_table(const struct ctl_path *path,
 		if (t->mode > 0777)
 			FAIL("bogus .mode");
 	}
+
+	/* make sure we can increment the header's ctl_procfs_refs
+	 * counter for each file in the table. If this fails we either
+	 * need to change the type of the ctl_procfs_refs variable, or
+	 * register more tables in the same directory. */
+	max_bits = 8 * sizeof(((struct ctl_table_header *) 0)->ctl_procfs_refs);
+	max_files = 1 << max_bits;
+	if (nr_files >= max_files)
+		FAIL("too many files in registered table");
 
 	if (error)
 		dump_stack();

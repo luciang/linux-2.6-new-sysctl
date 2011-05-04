@@ -947,7 +947,7 @@ extern void sysctl_init_group(struct ctl_table_group *group,
 
 /* get/put a reference to this header that
  * will be/was embedded in a procfs proc_inode */
-extern void sysctl_proc_inode_get(struct ctl_table_header *);
+extern int  sysctl_proc_inode_get(struct ctl_table_header *);
 extern void sysctl_proc_inode_put(struct ctl_table_header *);
 
 extern int sysctl_is_seen(struct ctl_table_header *);
@@ -1059,13 +1059,16 @@ struct ctl_table_header {
 			/* references to this header from contexts that
 			 * can access fields of this header */
 			int ctl_use_refs;
-			/* references to this header from procfs inodes.
-			 * procfs embeds a pointer to the header in proc_inode */
-			int ctl_procfs_refs;
 			/* counts references to this header from other
 			 * headers (through ->parent) plus the reference
 			 * returned by __register_sysctl_paths */
 			int ctl_header_refs;
+			/* references to this header from procfs inodes.
+			 * procfs embeds a pointer to the header in proc_inode.
+			 * If there's at max one inode created per file then
+			 * the max value of this is the number of files in the
+			 * ctl_table array, or 1 for directories. */
+			u8 ctl_procfs_refs;
 		};
 		struct rcu_head rcu;
 	};

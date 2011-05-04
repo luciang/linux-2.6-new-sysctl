@@ -1546,11 +1546,19 @@ static void start_unregistering(struct ctl_table_header *p)
 	}
 }
 
-void sysctl_proc_inode_get(struct ctl_table_header *head)
+int sysctl_proc_inode_get(struct ctl_table_header *head)
 {
+	int err = 0;
 	spin_lock(&sysctl_lock);
 	head->ctl_procfs_refs++;
+	if (unlikely(head->ctl_procfs_refs == 0)) {
+		/* restore old value */
+		head->ctl_procfs_refs--;
+		err = 1;
+		WARN(head->ctl_procfs_refs == 0, "sysctl: ctl_procfs_refs overflow");
+	}
 	spin_unlock(&sysctl_lock);
+	return err;
 }
 
 static void free_head(struct rcu_head *rcu)
