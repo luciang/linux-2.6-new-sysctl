@@ -1977,7 +1977,13 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 	const struct ctl_path *path, struct ctl_table *table)
 {
 	struct ctl_table_header *header;
+	int failed_duplicate_check = 0;
 	int nr_dirs = ctl_path_items(path);
+
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+	if (sysctl_check_table(path, nr_dirs, table))
+		return NULL;
+#endif
 
 	header = alloc_sysctl_header(group);
 	if (!header)
@@ -1993,8 +1999,19 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 	header->ctl_header_refs = 1;
 
 	sysctl_write_lock_head(header->parent);
-	list_add_tail(&header->ctl_entry, &header->parent->ctl_tables);
+
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+	failed_duplicate_check = sysctl_check_duplicates(header);
+#endif
+	if (!failed_duplicate_check)
+		list_add_tail(&header->ctl_entry, &header->parent->ctl_tables);
+
 	sysctl_write_unlock_head(header->parent);
+
+	if (failed_duplicate_check) {
+		unregister_sysctl_table(header);
+		return NULL;
+	}
 
 	return header;
 }
