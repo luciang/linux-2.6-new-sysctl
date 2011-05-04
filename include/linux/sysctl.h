@@ -1092,6 +1092,13 @@ extern struct ctl_table_header *register_sysctl_paths(const struct ctl_path *pat
 						      struct ctl_table *table);
 extern void unregister_sysctl_table(struct ctl_table_header *table);
 
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+extern int sysctl_check_table(const struct ctl_path *path,
+			      int nr_dirs,
+			      struct ctl_table *table);
+extern int sysctl_check_duplicates(struct ctl_table_header *header);
+#endif /* CONFIG_SYSCTL_SYSCALL_CHECK */
+
 #endif /* __KERNEL__ */
 
 #endif /* _LINUX_SYSCTL_H */
