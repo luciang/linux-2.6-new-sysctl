@@ -1061,12 +1061,14 @@ struct ctl_table_group_ops {
 };
 
 struct ctl_table_group {
+	/* has initialization for this group finished? */
+	char is_initialized;
+	/* does this group use the @corresp_list? */
+	char has_netns_corresp;
+	struct list_head corresp_list;
 	const struct ctl_table_group_ops *ctl_ops;
 	/* A list of ctl_table_header elements that represent the
 	 * netns-specific correspondents of some sysctl directories */
-	struct list_head corresp_list;
-	/* binary: whether this group uses the @corresp_list */
-	char has_netns_corresp;
 };
 
 /* struct ctl_table_header is used to maintain dynamic lists of
@@ -1091,6 +1093,13 @@ struct ctl_table_header {
 			 * headers (through ->parent) plus the reference
 			 * returned by __register_sysctl_paths */
 			int ctl_header_refs;
+			/* how many dirs were created when this header was
+			 * registered. Rule: the header which created a directory
+			 * should be the one that deletes it. This counter is
+			 * used to signal violations of this rule. The counter's
+			 * max value is CTL_MAXNAME (currently=10) so we use
+			 * only 4 bits of the 8 available. */
+			u8 ctl_owned_dirs_refs;
 		};
 		struct rcu_head rcu;
 	};
