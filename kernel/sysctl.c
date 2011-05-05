@@ -1920,6 +1920,12 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 			sysctl_write_unlock_head(parent);
 			parent = h;
 			dirs[i] = NULL; /* I'm used, don't free me */
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+			if (sysctl_check_netns_correspondents(parent, group)) {
+				unregister_sysctl_table(h);
+				goto err_check_netns_correspondents;
+			}
+#endif
 			continue;
 		}
 
@@ -1946,11 +1952,18 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 
 	return parent;
 
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+err_check_netns_correspondents:
+	if (__netns_corresp)
+		kmem_cache_free(sysctl_header_cachep, __netns_corresp);
+#endif
+
 err_alloc_coresp:
 	i = nr_dirs;
 err_alloc_dir:
 	for (i--; i >= 0; i--)
-		kmem_cache_free(sysctl_header_cachep, dirs[i]);
+		if (dirs[i])
+			kmem_cache_free(sysctl_header_cachep, dirs[i]);
 	return NULL;
 
 }
