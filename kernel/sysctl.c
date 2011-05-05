@@ -2151,6 +2151,9 @@ struct ctl_table_header *__register_sysctl_paths_impl(struct ctl_table_group *gr
 	header->ctl_table_arg = table;
 	header->ctl_header_refs = 1;
 	header->ctl_owned_dirs_refs = dirs_created;
+	header->ctl_cookie_handler = NULL;
+	header->ctl_cookie = NULL;
+
 
 	sysctl_write_lock_head(header->parent);
 

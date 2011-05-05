@@ -1073,6 +1073,11 @@ struct ctl_table_group {
 };
 
 
+/* use this to create dynamic ctl_table elements based on the @src and @head */
+typedef struct ctl_table* ctl_cookie_handler_t(struct ctl_table *dst,
+					       struct ctl_table *src,
+					       struct ctl_table_header *head);
+
 #define CTL_TYPE_FILE_WRAPPER 1
 #define CTL_TYPE_DIR          2
 #define CTL_TYPE_NETNS_DIR    3
@@ -1098,9 +1103,12 @@ struct ctl_table_header {
 			struct rb_root ctl_rb_subdirs;
 			struct rb_node ctl_rb_node;
 		};
-
-		/* only used in CTL_TYPE_FILE_WRAPPER */
-		struct list_head ctl_entry;
+		struct {
+			/* only used in CTL_TYPE_FILE_WRAPPER */
+			struct list_head ctl_entry;
+			ctl_cookie_handler_t *ctl_cookie_handler;
+			void *ctl_cookie;
+		};
 	};
 
 
