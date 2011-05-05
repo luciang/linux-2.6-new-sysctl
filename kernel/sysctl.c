@@ -1871,6 +1871,8 @@ static struct ctl_table_header *mkdir_new_dir(struct ctl_table_header *parent,
 	return dir;
 }
 
+
+static void unregister_sysctl_table_impl(struct ctl_table_header * header);
 /*
  * Attach the branch denoted by @dirs (a series of directories that
  * are children of their predecessor in the array) to @parent.
@@ -1941,6 +1943,12 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 			sysctl_write_unlock_head(parent);
 			parent = h;
 			dirs[i] = NULL; /* I'm used, don't free me */
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+			if (sysctl_check_netns_correspondents(parent, group)) {
+				unregister_sysctl_table_impl(h);
+				goto err_check_netns_correspondents;
+			}
+#endif
 			continue;
 		}
 
@@ -1967,17 +1975,22 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 
 	return parent;
 
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+err_check_netns_correspondents:
+	if (__netns_corresp)
+		kmem_cache_free(sysctl_header_cachep, __netns_corresp);
+#endif
+
 err_alloc_coresp:
 	i = nr_dirs;
 err_alloc_dir:
 	for (i--; i >= 0; i--)
-		kmem_cache_free(sysctl_header_cachep, dirs[i]);
+		if (dirs[i])
+			kmem_cache_free(sysctl_header_cachep, dirs[i]);
 	return NULL;
 
 }
 
-
-static void unregister_sysctl_table_impl(struct ctl_table_header * header);
 /**
  * __register_sysctl_paths - register a sysctl hierarchy
  * @group: Group of sysctl headers to register on
