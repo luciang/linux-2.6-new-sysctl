@@ -212,9 +212,9 @@ static struct ctl_table_group root_table_group = {
 static struct ctl_table_header root_table_header = {
 	{{.ctl_header_refs = 1,
 	  .ctl_entry	= LIST_HEAD_INIT(root_table_header.ctl_entry),}},
-	.ctl_tables	= LIST_HEAD_INIT(root_table_header.ctl_tables),
-	.ctl_subdirs	= LIST_HEAD_INIT(root_table_header.ctl_subdirs),
 	.ctl_group	= &root_table_group,
+	{{.ctl_tables	= LIST_HEAD_INIT(root_table_header.ctl_tables),
+	  .ctl_subdirs	= LIST_HEAD_INIT(root_table_header.ctl_subdirs),}},
 };
 
 #ifdef HAVE_ARCH_PICK_MMAP_LAYOUT
@@ -1793,6 +1793,17 @@ static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *grou
 	return h;
 }
 
+static struct ctl_table_header *alloc_sysctl_dir_header(struct ctl_table_group *group)
+{
+	struct ctl_table_header *h;
+	h = alloc_sysctl_header(group);
+	if (!h)
+		return NULL;
+	INIT_LIST_HEAD(&h->ctl_subdirs);
+	INIT_LIST_HEAD(&h->ctl_tables);
+	return h;
+}
+
 /* Increment the references to an existing subdir of @parent with the name
  * @name and return that subdir. If no such subdir exists, return NULL.
  * Called under the write lock protecting parent's ctl_subdirs. */
@@ -1894,7 +1905,7 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 	 * their parent directories. Stuff that is not used will be
 	 * freed at the end. */
 	for (i = 0; i < nr_dirs; i++) {
-		dirs[i] = alloc_sysctl_header(group);
+		dirs[i] = alloc_sysctl_dir_header(group);
 		if (!dirs[i])
 			goto err_alloc_dir;
 		dirs[i]->ctl_dirname = path[i].procname;
@@ -1906,7 +1917,7 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 		 * this later while being under a lock. We
 		 * pre-allocate it just in case it might be needed and
 		 * free it at the end only if it wasn't used. */
-		__netns_corresp = alloc_sysctl_header(group);
+		__netns_corresp = alloc_sysctl_dir_header(group);
 		if (!__netns_corresp)
 			goto err_alloc_coresp;
 	}
@@ -2066,6 +2077,8 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 	header->ctl_table_arg = table;
 	header->ctl_header_refs = 1;
 	header->ctl_owned_dirs_refs = dirs_created;
+	header->ctl_cookie_hander = NULL;
+	header->ctl_cookie = NULL;
 
 	sysctl_write_lock_head(header->parent);
 

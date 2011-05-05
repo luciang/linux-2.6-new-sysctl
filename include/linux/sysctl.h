@@ -1046,6 +1046,11 @@ struct ctl_table_group {
 	 * netns-specific correspondents of some sysctl directories */
 };
 
+/* use this to create dynamic ctl_table elements based on the @src and @head */
+typedef struct ctl_table* ctl_cookie_handler_t(struct ctl_table *dst,
+					       struct ctl_table *src,
+					       struct ctl_table_header *head);
+
 /* struct ctl_table_header is used to maintain dynamic lists of
    struct ctl_table trees. */
 struct ctl_table_header {
@@ -1084,11 +1089,20 @@ struct ctl_table_header {
 	struct completion *unregistering;
 	struct ctl_table_group *ctl_group;
 
-	/* Lists of other ctl_table_headers that represent either
-	 * subdirectories or ctl_tables of files. Add/remove and walk
-	 * this list holding the header's read/write lock. */
-	struct list_head ctl_tables;
-	struct list_head ctl_subdirs;
+	union {
+		struct {
+			/* Lists of other ctl_table_headers that
+			 * represent either subdirs or ctl_tables of
+			 * files. Add/remove and walk this list
+			 * holding the header's read/write lock.*/
+			struct list_head ctl_tables;
+			struct list_head ctl_subdirs;
+		};
+		struct {
+			ctl_cookie_handler_t *ctl_cookie_handler;
+			void *ctl_cookie;
+		};
+	};
 	struct ctl_table_header *parent;
 };
 
