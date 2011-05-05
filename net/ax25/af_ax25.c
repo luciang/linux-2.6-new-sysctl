@@ -1996,7 +1996,6 @@ static const struct __initdata ctl_path ax25_path[] = {
 	{ .procname = "ax25" },
 	{ }
 };
-static struct ctl_table empty;
 static struct ctl_table_header *ax25_root_header;
 #endif /* CONFIG_SYSCTL */
 
@@ -2014,7 +2013,7 @@ static int __init ax25_init(void)
 
 	/* XXX: no error checking done in initializer */
 	#ifdef CONFIG_SYSCTL
-	ax25_root_header = register_sysctl_paths(ax25_path, &empty);
+	ax25_root_header = register_sysctl_dir(ax25_path);
 	#endif
 
 	proc_net_fops_create(&init_net, "ax25_route", S_IRUGO, &ax25_route_fops);
