@@ -2045,6 +2045,9 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 	int dirs_created = 0;
 
 #ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+	if (sysctl_check_path(path, nr_dirs))
+		return NULL;
+
 	if (sysctl_check_table(path, nr_dirs, table))
 		return NULL;
 #endif
@@ -2096,6 +2099,39 @@ struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table)
 {
 	return __register_sysctl_paths(&root_table_group, path, table);
+}
+
+/* Register an empty sysctl directory. */
+static struct ctl_table_header *__register_sysctl_dir(
+	struct ctl_table_group *group, const struct ctl_path *path)
+{
+	struct ctl_table_header *dir;
+	int nr_dirs = ctl_path_items(path);
+	int dirs_created = 0;
+
+#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
+	if (sysctl_check_path(path, nr_dirs))
+		return NULL;
+#endif
+
+	dir = sysctl_mkdirs(&root_table_header, group, path,
+			    nr_dirs, &dirs_created);
+	if (!dir)
+		return NULL;
+
+	/* -1 because we don't want to count ourselves in the list of
+         * directory headers owned by @dir. NOTE: if all of the dirs
+         * in the path are already registered dirs_created will be 0. */
+	if (dirs_created > 0)
+		dir->ctl_owned_dirs_refs = dirs_created - 1;
+	else
+		dir->ctl_owned_dirs_refs = 0;
+	return dir;
+}
+
+struct ctl_table_header *register_sysctl_dir(const struct ctl_path *path)
+{
+	return __register_sysctl_dir(&root_table_group, path);
 }
 
 /**
@@ -3193,4 +3229,5 @@ EXPORT_SYMBOL(proc_dostring);
 EXPORT_SYMBOL(proc_doulongvec_minmax);
 EXPORT_SYMBOL(proc_doulongvec_ms_jiffies_minmax);
 EXPORT_SYMBOL(register_sysctl_paths);
+EXPORT_SYMBOL(register_sysctl_dir);
 EXPORT_SYMBOL(unregister_sysctl_table);
