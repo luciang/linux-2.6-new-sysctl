@@ -1128,6 +1128,8 @@ extern int sysctl_check_table(const struct ctl_path *path,
 			      int nr_dirs,
 			      struct ctl_table *table);
 extern int sysctl_check_duplicates(struct ctl_table_header *header);
+extern int sysctl_check_netns_correspondents(struct ctl_table_header *header,
+					     struct ctl_table_group *group);
 #endif /* CONFIG_SYSCTL_SYSCALL_CHECK */
 
 #endif /* __KERNEL__ */
