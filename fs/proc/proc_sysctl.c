@@ -150,6 +150,7 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 	struct inode *inode = filp->f_path.dentry->d_inode;
 	struct ctl_table_header *head = sysctl_use_header(PROC_I(inode)->sysctl);
 	struct ctl_table *table = PROC_I(inode)->sysctl_entry;
+	struct ctl_table tmp;
 	ssize_t error;
 	size_t res;
 
@@ -168,6 +169,9 @@ static ssize_t proc_sys_call_handler(struct file *filp, void __user *buf,
 	error = -EINVAL;
 	if (!table->proc_handler)
 		goto out;
+
+	if (head->ctl_cookie_handler)
+		table = head->ctl_cookie_handler(&tmp, table, head);
 
 	/* careful: calling conventions are nasty here */
 	res = count;
