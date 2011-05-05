@@ -3151,8 +3151,6 @@ static ctl_table ipv4_route_table[] = {
 	{ }
 };
 
-static struct ctl_table empty[1];
-
 static __net_initdata struct ctl_path ipv4_neigh_path[] = {
 	{ .procname = "net", },
 	{ .procname = "ipv4", },
@@ -3310,6 +3308,6 @@ int __init ip_rt_init(void)
 void __init ip_static_sysctl_init(void)
 {
 	register_sysctl_paths(ipv4_route_path, ipv4_route_table);
-	register_sysctl_paths(ipv4_neigh_path, empty);
+	register_sysctl_dir(ipv4_neigh_path);
 }
 #endif
