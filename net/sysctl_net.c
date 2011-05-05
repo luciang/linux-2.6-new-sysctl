@@ -118,3 +118,30 @@ void unregister_net_sysctl_table(struct ctl_table_header *header)
 	unregister_sysctl_table(header);
 }
 EXPORT_SYMBOL_GPL(unregister_net_sysctl_table);
+
+
+/* Use this conversion handler you want to change a netns dependant
+ * variable. The following restrictions apply:
+ *
+ * - the data field of the registered ctl_table* must be at a constant
+ *   offset from the init_net structure:  &init_net.member1.member2..memberN
+ *
+ * - the data field will be changed to point to the similar position
+ *   in the net used to register this header: net->member1.member2..memberN */
+static struct ctl_table* netns_cookie_handler(struct ctl_table *dst,
+					      struct ctl_table *src,
+					      struct ctl_table_header *head)
+{
+	struct net *net = head->ctl_cookie;
+	memcpy(dst, src, sizeof(*dst));
+	dst->data += (char *)net - (char *)&init_net;
+	return dst;
+}
+
+struct ctl_table_header *register_net_sysctl_table_net_cookie(
+	struct net *net, const struct ctl_path *path, struct ctl_table *table)
+{
+	return __register_sysctl_paths(&net->netns_ctl_group, path,
+				       table, &netns_cookie_handler, net);
+}
+EXPORT_SYMBOL_GPL(register_net_sysctl_table_net_cookie);
