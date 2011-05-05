@@ -195,41 +195,18 @@ __net_initdata struct ctl_path net_core_path[] = {
 
 static __net_init int sysctl_core_net_init(struct net *net)
 {
-	struct ctl_table *tbl;
-
 	net->core.sysctl_somaxconn = SOMAXCONN;
-
-	tbl = netns_core_table;
-	if (!net_eq(net, &init_net)) {
-		tbl = kmemdup(tbl, sizeof(netns_core_table), GFP_KERNEL);
-		if (tbl == NULL)
-			goto err_dup;
-
-		tbl[0].data = &net->core.sysctl_somaxconn;
-	}
-
-	net->core.sysctl_hdr = register_net_sysctl_table(net,
-			net_core_path, tbl);
+	net->core.sysctl_hdr = register_net_sysctl_table_net_cookie(net,
+			net_core_path, netns_core_table);
 	if (net->core.sysctl_hdr == NULL)
-		goto err_reg;
+		return -ENOMEM;
 
 	return 0;
-
-err_reg:
-	if (tbl != netns_core_table)
-		kfree(tbl);
-err_dup:
-	return -ENOMEM;
 }
 
 static __net_exit void sysctl_core_net_exit(struct net *net)
 {
-	struct ctl_table *tbl;
-
-	tbl = net->core.sysctl_hdr->ctl_table_arg;
 	unregister_net_sysctl_table(net->core.sysctl_hdr);
-	BUG_ON(tbl == netns_core_table);
-	kfree(tbl);
 }
 
 static __net_initdata struct pernet_operations sysctl_core_ops = {
