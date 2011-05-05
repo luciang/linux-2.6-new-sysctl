@@ -2131,6 +2131,9 @@ struct ctl_table_header *__register_sysctl_paths_impl(struct ctl_table_group *gr
 	int nr_dirs = ctl_path_items(path);
 	int dirs_created = 0;
 
+	if (sysctl_check_path(path, nr_dirs))
+		return NULL;
+
 	if (sysctl_check_table(path, nr_dirs, table))
 		return NULL;
 
@@ -2336,6 +2339,38 @@ struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 	return __register_sysctl_paths(&root_table_group, path, table);
 }
 
+/* Register an empty sysctl directory. */
+static struct ctl_table_header *__register_sysctl_dir(
+	struct ctl_table_group *group, const struct ctl_path *path)
+{
+	struct ctl_table_header *dir;
+	int nr_dirs = ctl_path_items(path);
+	int dirs_created = 0;
+
+	if (sysctl_check_path(path, nr_dirs))
+		return NULL;
+
+	dir = sysctl_mkdirs(&root_table_header, group, path,
+			    nr_dirs, &dirs_created);
+	if (!dir)
+		return NULL;
+
+	/* -1 because we don't want to count ourselves in the list of
+         * directory headers owned by @dir. NOTE: if all of the dirs
+         * in the path are already registered dirs_created will be 0. */
+	if (dirs_created > 0)
+		dirs_created --;
+	dir->ctl_owned_dirs_refs = dirs_created;
+
+	/* sysctl_mkdirs already sets dir->ctl_header_refs */
+	return dir;
+}
+
+struct ctl_table_header *register_sysctl_dir(const struct ctl_path *path)
+{
+	return __register_sysctl_dir(&root_table_group, path);
+}
+
 /**
  * register_sysctl_table - register a sysctl table hierarchy
  * @table: the top-level table structure
@@ -2504,6 +2539,11 @@ struct ctl_table_header *register_sysctl_table(struct ctl_table * table)
 
 struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						    struct ctl_table *table)
+{
+	return NULL;
+}
+
+struct ctl_table_header *register_sysctl_dir(const struct ctl_path *path)
 {
 	return NULL;
 }
@@ -3489,4 +3529,5 @@ EXPORT_SYMBOL(proc_doulongvec_minmax);
 EXPORT_SYMBOL(proc_doulongvec_ms_jiffies_minmax);
 EXPORT_SYMBOL(register_sysctl_table);
 EXPORT_SYMBOL(register_sysctl_paths);
+EXPORT_SYMBOL(register_sysctl_dir);
 EXPORT_SYMBOL(unregister_sysctl_table);
