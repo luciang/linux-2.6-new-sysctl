@@ -24,6 +24,16 @@ static void fail(const struct ctl_path *path,
 
 #define FAIL(str) do { fail(path, t->procname, str); error = -EINVAL;} while (0)
 
+
+int sysctl_check_path(const struct ctl_path *path, int nr_dirs)
+{
+	if (nr_dirs <= CTL_MAXNAME - 1)
+		return 0;
+	fail(path, NULL, "tree too deep");
+	return -EINVAL;
+}
+
+
 int sysctl_check_table(const struct ctl_path *path,
 		       int nr_dirs,
 		       struct ctl_table *table)
@@ -31,10 +41,6 @@ int sysctl_check_table(const struct ctl_path *path,
 	struct ctl_table *t;
 	int error = 0;
 
-	if (nr_dirs > CTL_MAXNAME - 1) {
-		fail(path, NULL, "tree too deep");
-		error = -EINVAL;
-	}
 
 	for(t = table; t->procname; t++) {
 		if ((t->proc_handler == proc_dostring) ||
