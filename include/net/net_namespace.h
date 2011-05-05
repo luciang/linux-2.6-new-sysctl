@@ -274,6 +274,8 @@ struct ctl_table_header;
 
 extern struct ctl_table_header *register_net_sysctl_table(struct net *net,
 	const struct ctl_path *path, struct ctl_table *table);
+extern struct ctl_table_header *register_net_sysctl_table_net_cookie(
+	struct net *net, const struct ctl_path *path, struct ctl_table *table);
 extern struct ctl_table_header *register_net_sysctl_rotable(
 	const struct ctl_path *path, struct ctl_table *table);
 extern void unregister_net_sysctl_table(struct ctl_table_header *header);
