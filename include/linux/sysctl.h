@@ -1143,8 +1143,8 @@ struct ctl_path {
 };
 
 extern struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *g,
-							const struct ctl_path *p,
-							struct ctl_table *table);
+	const struct ctl_path *p, struct ctl_table *table,
+	ctl_cookie_handler_t ch, void *cookie);
 extern struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						      struct ctl_table *table);
 struct ctl_table_header *register_sysctl_dir(const struct ctl_path *path);

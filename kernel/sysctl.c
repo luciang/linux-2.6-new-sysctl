@@ -2048,7 +2048,8 @@ err_alloc_dir:
  * to the table header on success.
  */
 struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
-	const struct ctl_path *path, struct ctl_table *table)
+	const struct ctl_path *path, struct ctl_table *table,
+	ctl_cookie_handler_t ch, void *cookie)
 {
 	struct ctl_table_header *header;
 	int failed_duplicate_check = 0;
@@ -2077,8 +2078,8 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 	header->ctl_table_arg = table;
 	header->ctl_header_refs = 1;
 	header->ctl_owned_dirs_refs = dirs_created;
-	header->ctl_cookie_hander = NULL;
-	header->ctl_cookie = NULL;
+	header->ctl_cookie_handler = ch;
+	header->ctl_cookie = cookie;
 
 	sysctl_write_lock_head(header->parent);
 
@@ -2111,7 +2112,8 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table)
 {
-	return __register_sysctl_paths(&root_table_group, path, table);
+	return __register_sysctl_paths(&root_table_group, path,
+				       table, NULL, NULL);
 }
 
 /* Register an empty sysctl directory. */

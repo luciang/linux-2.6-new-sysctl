@@ -100,14 +100,16 @@ subsys_initcall(net_sysctl_init);
 struct ctl_table_header *register_net_sysctl_table(struct net *net,
 	const struct ctl_path *path, struct ctl_table *table)
 {
-	return __register_sysctl_paths(&net->netns_ctl_group, path, table);
+	return __register_sysctl_paths(&net->netns_ctl_group, path,
+				       table, NULL, NULL);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table);
 
 struct ctl_table_header *register_net_sysctl_rotable(const
 		struct ctl_path *path, struct ctl_table *table)
 {
-	return __register_sysctl_paths(&net_sysctl_ro_group, path, table);
+	return __register_sysctl_paths(&net_sysctl_ro_group, path,
+				       table, NULL, NULL);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_rotable);
 
