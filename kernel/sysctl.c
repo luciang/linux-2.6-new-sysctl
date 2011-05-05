@@ -2103,7 +2103,8 @@ err_alloc_dir:
  * to the table header on success.
  */
 struct ctl_table_header *__register_sysctl_paths_impl(struct ctl_table_group *group,
-	const struct ctl_path *path, struct ctl_table *table)
+	const struct ctl_path *path, struct ctl_table *table,
+	ctl_cookie_handler_t ch, void *cookie)
 {
 	struct ctl_table_header *header;
 	int failed_duplicate_check = 0;
@@ -2130,8 +2131,8 @@ struct ctl_table_header *__register_sysctl_paths_impl(struct ctl_table_group *gr
 	header->ctl_table_arg = table;
 	header->ctl_header_refs = 1;
 	header->ctl_owned_dirs_refs = dirs_created;
-	header->ctl_cookie_handler = NULL;
-	header->ctl_cookie = NULL;
+	header->ctl_cookie_handler = ch;
+	header->ctl_cookie = cookie;
 
 
 	sysctl_write_lock_head(header->parent);
@@ -2175,7 +2176,9 @@ static int
 register_headers_as_leafs(struct ctl_path *path, int path_depth,
 			  struct ctl_table_header *wrap_h,
 			  struct ctl_table_group *group,
-			  struct ctl_table *table)
+			  struct ctl_table *table,
+			  ctl_cookie_handler_t ch,
+			  void *cookie)
 {
 	int i;
 	int nr_files = 0;
@@ -2212,7 +2215,7 @@ register_headers_as_leafs(struct ctl_path *path, int path_depth,
 		memset(&files[nr_files], 0, sizeof(struct ctl_table));
 
 		path[path_depth].procname = NULL;
-		h = __register_sysctl_paths_impl(group, path, files);
+		h = __register_sysctl_paths_impl(group, path, files, ch, cookie);
 		if (h == NULL)
 			goto err_register_files;
 
@@ -2226,7 +2229,8 @@ register_headers_as_leafs(struct ctl_path *path, int path_depth,
 			continue;
 		path[path_depth].procname = t->procname;
 		path[path_depth + 1].procname = NULL;
-		err = register_headers_as_leafs(path, path_depth + 1, wrap_h, group, t->child);
+		err = register_headers_as_leafs(path, path_depth + 1, wrap_h,
+						group, t->child, ch, cookie);
 		if (err) {
 			/* parent will unregister all already
 			 * registered subheaders */
@@ -2254,10 +2258,9 @@ err_alloc_file_table:
  * This hack is only useful until all places that register sysctl
  * tables get rid of the .child member of ctl_table and register only
  * arrays of ctl_table files themselves. */
-struct ctl_table_header *__register_sysctl_paths(
-	struct ctl_table_group *group,
-	const struct ctl_path *_path,
-	struct ctl_table *table)
+struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
+	const struct ctl_path *_path, struct ctl_table *table,
+	ctl_cookie_handler_t ch, void *cookie)
 {
 	int path_depth, i;
 	int nr_subheaders = count_subheaders(table);
@@ -2279,7 +2282,8 @@ struct ctl_table_header *__register_sysctl_paths(
 	if (wrap_h->subheaders == NULL)
 		goto err_alloc_subheaders;
 
-	if (register_headers_as_leafs(path, path_depth, wrap_h, group, table))
+	if (register_headers_as_leafs(path, path_depth, wrap_h, group,
+				      table, ch, cookie))
 		goto err_register_leafs;
 
 	return wrap_h;
@@ -2314,7 +2318,8 @@ err_alloc_header:
 struct ctl_table_header *register_sysctl_paths(const struct ctl_path *path,
 						struct ctl_table *table)
 {
-	return __register_sysctl_paths(&root_table_group, path, table);
+	return __register_sysctl_paths(&root_table_group, path,
+				       table, NULL, NULL);
 }
 
 /* Register an empty sysctl directory. */
