@@ -61,8 +61,6 @@ static const struct ctl_path net_ipv6_icmp_path[] = {
 static int __net_init ipv6_sysctl_net_init(struct net *net)
 {
 	struct ctl_table *ipv6_bindv6only_table;
-	struct ctl_table *ipv6_route_table;
-	struct ctl_table *ipv6_icmp_table;
 
 	ipv6_bindv6only_table = kmemdup(ipv6_bindv6only_template,
 					sizeof(ipv6_bindv6only_template), GFP_KERNEL);
@@ -70,26 +68,17 @@ static int __net_init ipv6_sysctl_net_init(struct net *net)
 		goto fail_alloc_ipv6_bindv6only_table;
 	ipv6_bindv6only_table[0].data = &net->ipv6.sysctl.bindv6only;
 
-	ipv6_route_table = ipv6_route_sysctl_init(net);
-	if (!ipv6_route_table)
-		goto fail_alloc_ipv6_route_table;
-
-	ipv6_icmp_table = ipv6_icmp_sysctl_init(net);
-	if (!ipv6_icmp_table)
-		goto fail_alloc_ipv6_icmp_table;
-
-
 	net->ipv6.sysctl.bindv6only_hdr = register_net_sysctl_table(
 		net, net_ipv6_ctl_path, ipv6_bindv6only_table);
 	if (!net->ipv6.sysctl.bindv6only_hdr)
 		goto fail_reg_bindv6only_hdr;
 
-	net->ipv6.sysctl.route6_hdr = register_net_sysctl_table(
+	net->ipv6.sysctl.route6_hdr = register_net_sysctl_table_net_cookie(
 		net, net_ipv6_route_path, ipv6_route_table);
 	if (!net->ipv6.sysctl.route6_hdr)
 		goto fail_reg_route6_hdr;
 
-	net->ipv6.sysctl.icmp6_hdr = register_net_sysctl_table(
+	net->ipv6.sysctl.icmp6_hdr = register_net_sysctl_table_net_cookie(
 		net, net_ipv6_icmp_path, ipv6_icmp_table);
 	if (!net->ipv6.sysctl.icmp6_hdr)
 		goto fail_reg_icmp6_hdr;
@@ -101,10 +90,6 @@ fail_reg_icmp6_hdr:
 fail_reg_route6_hdr:
 	unregister_net_sysctl_table(net->ipv6.sysctl.bindv6only_hdr);
 fail_reg_bindv6only_hdr:
-	kfree(ipv6_icmp_table);
-fail_alloc_ipv6_icmp_table:
-	kfree(ipv6_route_table);
-fail_alloc_ipv6_route_table:
 	kfree(ipv6_bindv6only_table);
 fail_alloc_ipv6_bindv6only_table:
 	return -ENOMEM;
@@ -113,19 +98,13 @@ fail_alloc_ipv6_bindv6only_table:
 static void __net_exit ipv6_sysctl_net_exit(struct net *net)
 {
 	struct ctl_table *ipv6_bindv6only_table;
-	struct ctl_table *ipv6_route_table;
-	struct ctl_table *ipv6_icmp_table;
 
 	ipv6_bindv6only_table = net->ipv6.sysctl.bindv6only_hdr->ctl_table_arg;
-	ipv6_route_table = net->ipv6.sysctl.route6_hdr->ctl_table_arg;
-	ipv6_icmp_table = net->ipv6.sysctl.icmp6_hdr->ctl_table_arg;
 
 	unregister_net_sysctl_table(net->ipv6.sysctl.icmp6_hdr);
 	unregister_net_sysctl_table(net->ipv6.sysctl.route6_hdr);
 	unregister_net_sysctl_table(net->ipv6.sysctl.bindv6only_hdr);
 
-	kfree(ipv6_icmp_table);
-	kfree(ipv6_route_table);
 	kfree(ipv6_bindv6only_table);
 }
 
