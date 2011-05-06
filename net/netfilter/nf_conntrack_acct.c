@@ -59,36 +59,18 @@ static struct nf_ct_ext_type acct_extend __read_mostly = {
 #ifdef CONFIG_SYSCTL
 static int nf_conntrack_acct_init_sysctl(struct net *net)
 {
-	struct ctl_table *table;
-
-	table = kmemdup(acct_sysctl_table, sizeof(acct_sysctl_table),
-			GFP_KERNEL);
-	if (!table)
-		goto out;
-
-	table[0].data = &net->ct.sysctl_acct;
-
-	net->ct.acct_sysctl_header = register_net_sysctl_table(net,
-			nf_net_netfilter_sysctl_path, table);
+	net->ct.acct_sysctl_header = register_net_sysctl_table_net_cookie(net,
+			nf_net_netfilter_sysctl_path, acct_sysctl_table);
 	if (!net->ct.acct_sysctl_header) {
 		printk(KERN_ERR "nf_conntrack_acct: can't register to sysctl.\n");
-		goto out_register;
+		return -ENOMEM;
 	}
 	return 0;
-
-out_register:
-	kfree(table);
-out:
-	return -ENOMEM;
 }
 
 static void nf_conntrack_acct_fini_sysctl(struct net *net)
 {
-	struct ctl_table *table;
-
-	table = net->ct.acct_sysctl_header->ctl_table_arg;
 	unregister_net_sysctl_table(net->ct.acct_sysctl_header);
-	kfree(table);
 }
 #else
 static int nf_conntrack_acct_init_sysctl(struct net *net)
