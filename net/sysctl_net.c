@@ -145,3 +145,12 @@ struct ctl_table_header *register_net_sysctl_table_net_cookie(
 				       table, &netns_cookie_handler, net);
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table_net_cookie);
+
+struct ctl_table_header *register_net_sysctl_table_custom_cookie(
+	struct net *net, const struct ctl_path *path, struct ctl_table *table,
+	ctl_cookie_handler_t ch, void *cookie)
+{
+	return __register_sysctl_paths(&net->netns_ctl_group, path,
+				       table, ch, cookie);
+}
+EXPORT_SYMBOL_GPL(register_net_sysctl_table_custom_cookie);
