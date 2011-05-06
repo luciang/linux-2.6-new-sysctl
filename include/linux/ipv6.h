@@ -172,7 +172,11 @@ struct ipv6_devconf {
 	__s32		disable_ipv6;
 	__s32		accept_dad;
 	__s32		force_tllao;
-	void		*sysctl;
+
+	char *addrconf_dev_name;
+	struct inet6_dev *addrconf_idev;
+	struct net *addrconf_net;
+	struct ctl_table_header *addrconf_sysctl_header;
 };
 
 struct ipv6_params {
