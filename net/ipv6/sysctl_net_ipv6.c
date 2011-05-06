@@ -15,7 +15,7 @@
 #include <net/addrconf.h>
 #include <net/inet_frag.h>
 
-static ctl_table ipv6_bindv6only_template[] = {
+static ctl_table ipv6_bindv6only_table[] = {
 	{
 		.procname	= "bindv6only",
 		.data		= &init_net.ipv6.sysctl.bindv6only,
@@ -60,15 +60,7 @@ static const struct ctl_path net_ipv6_icmp_path[] = {
 
 static int __net_init ipv6_sysctl_net_init(struct net *net)
 {
-	struct ctl_table *ipv6_bindv6only_table;
-
-	ipv6_bindv6only_table = kmemdup(ipv6_bindv6only_template,
-					sizeof(ipv6_bindv6only_template), GFP_KERNEL);
-	if (!ipv6_bindv6only_table)
-		goto fail_alloc_ipv6_bindv6only_table;
-	ipv6_bindv6only_table[0].data = &net->ipv6.sysctl.bindv6only;
-
-	net->ipv6.sysctl.bindv6only_hdr = register_net_sysctl_table(
+	net->ipv6.sysctl.bindv6only_hdr = register_net_sysctl_table_net_cookie(
 		net, net_ipv6_ctl_path, ipv6_bindv6only_table);
 	if (!net->ipv6.sysctl.bindv6only_hdr)
 		goto fail_reg_bindv6only_hdr;
@@ -90,22 +82,14 @@ fail_reg_icmp6_hdr:
 fail_reg_route6_hdr:
 	unregister_net_sysctl_table(net->ipv6.sysctl.bindv6only_hdr);
 fail_reg_bindv6only_hdr:
-	kfree(ipv6_bindv6only_table);
-fail_alloc_ipv6_bindv6only_table:
 	return -ENOMEM;
 }
 
 static void __net_exit ipv6_sysctl_net_exit(struct net *net)
 {
-	struct ctl_table *ipv6_bindv6only_table;
-
-	ipv6_bindv6only_table = net->ipv6.sysctl.bindv6only_hdr->ctl_table_arg;
-
 	unregister_net_sysctl_table(net->ipv6.sysctl.icmp6_hdr);
 	unregister_net_sysctl_table(net->ipv6.sysctl.route6_hdr);
 	unregister_net_sysctl_table(net->ipv6.sysctl.bindv6only_hdr);
-
-	kfree(ipv6_bindv6only_table);
 }
 
 static struct pernet_operations ipv6_sysctl_net_ops = {
