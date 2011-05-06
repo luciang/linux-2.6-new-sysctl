@@ -44,7 +44,11 @@ enum
 #define IPV4_DEVCONF_MAX (__IPV4_DEVCONF_MAX - 1)
 
 struct ipv4_devconf {
-	void	*sysctl;
+#ifdef CONFIG_SYSCTL
+	char *devconf_name;
+	struct net *devconf_net;
+	struct ctl_table_header *devconf_sysctl_header;
+#endif /* CONFIG_SYSCTL */
 	int	data[IPV4_DEVCONF_MAX];
 	DECLARE_BITMAP(state, IPV4_DEVCONF_MAX);
 };
