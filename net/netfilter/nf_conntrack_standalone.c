@@ -407,7 +407,7 @@ static int log_invalid_proto_max = 255;
 
 static struct ctl_table_header *nf_ct_netfilter_header;
 
-static ctl_table nf_ct_sysctl_table[] = {
+static ctl_table nf_ct_sysctl_table_max[] = {
 	{
 		.procname	= "nf_conntrack_max",
 		.data		= &nf_conntrack_max,
@@ -415,6 +415,17 @@ static ctl_table nf_ct_sysctl_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
+	{
+		.procname	= "nf_conntrack_expect_max",
+		.data		= &nf_ct_expect_max,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{ }
+};
+
+static ctl_table nf_ct_sysctl_table[] = {
 	{
 		.procname	= "nf_conntrack_count",
 		.data		= &init_net.ct.count,
@@ -444,13 +455,6 @@ static ctl_table nf_ct_sysctl_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &log_invalid_proto_min,
 		.extra2		= &log_invalid_proto_max,
-	},
-	{
-		.procname	= "nf_conntrack_expect_max",
-		.data		= &nf_ct_expect_max,
-		.maxlen		= sizeof(int),
-		.mode		= 0644,
-		.proc_handler	= proc_dointvec,
 	},
 	{ }
 };
@@ -489,18 +493,25 @@ static int nf_conntrack_standalone_init_sysctl(struct net *net)
 	if (!table)
 		goto out_kmemdup;
 
-	table[1].data = &net->ct.count;
-	table[2].data = &net->ct.htable_size;
-	table[3].data = &net->ct.sysctl_checksum;
-	table[4].data = &net->ct.sysctl_log_invalid;
+	table[0].data = &net->ct.count;
+	table[1].data = &net->ct.htable_size;
+	table[2].data = &net->ct.sysctl_checksum;
+	table[3].data = &net->ct.sysctl_log_invalid;
 
 	net->ct.sysctl_header = register_net_sysctl_table(net,
 					nf_net_netfilter_sysctl_path, table);
 	if (!net->ct.sysctl_header)
 		goto out_unregister_netfilter;
 
+	net->ct.max_sysctl_header = register_net_sysctl_table(net,
+			nf_net_netfilter_sysctl_path, nf_ct_sysctl_table_max);
+	if (!net->ct.max_sysctl_header)
+		goto out_unregister_netfilter_max;
 	return 0;
 
+out_unregister_netfilter_max:
+	unregister_sysctl_table(net->ct.sysctl_header);
+	net->ct.sysctl_header = NULL;
 out_unregister_netfilter:
 	kfree(table);
 out_kmemdup:
@@ -515,11 +526,14 @@ static void nf_conntrack_standalone_fini_sysctl(struct net *net)
 {
 	struct ctl_table *table;
 
-	if (net_eq(net, &init_net))
-		unregister_sysctl_table(nf_ct_netfilter_header);
+	unregister_net_sysctl_table(net->ct.max_sysctl_header);
+
 	table = net->ct.sysctl_header->ctl_table_arg;
 	unregister_net_sysctl_table(net->ct.sysctl_header);
 	kfree(table);
+
+	if (net_eq(net, &init_net))
+		unregister_sysctl_table(nf_ct_netfilter_header);
 }
 #else
 static int nf_conntrack_standalone_init_sysctl(struct net *net)
