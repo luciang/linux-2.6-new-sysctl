@@ -1944,12 +1944,10 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 			sysctl_write_unlock_head(parent);
 			parent = h;
 			dirs[i] = NULL; /* I'm used, don't free me */
-#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 			if (sysctl_check_netns_correspondents(parent, group)) {
 				unregister_sysctl_table(h);
 				goto err_check_netns_correspondents;
 			}
-#endif
 			(*p_dirs_created)++;
 			continue;
 		}
@@ -1981,11 +1979,9 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 
 	return parent;
 
-#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 err_check_netns_correspondents:
 	if (__netns_corresp)
 		kmem_cache_free(sysctl_header_cachep, __netns_corresp);
-#endif
 
 err_alloc_coresp:
 	i = nr_dirs;
@@ -2056,13 +2052,11 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 	int nr_dirs = ctl_path_items(path);
 	int dirs_created = 0;
 
-#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 	if (sysctl_check_path(path, nr_dirs))
 		return NULL;
 
 	if (sysctl_check_table(path, nr_dirs, table))
 		return NULL;
-#endif
 
 	header = alloc_sysctl_header(group);
 	if (!header)
@@ -2083,9 +2077,7 @@ struct ctl_table_header *__register_sysctl_paths(struct ctl_table_group *group,
 
 	sysctl_write_lock_head(header->parent);
 
-#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 	failed_duplicate_check = sysctl_check_duplicates(header);
-#endif
 	if (!failed_duplicate_check)
 		list_add_tail_rcu(&header->ctl_entry, &header->parent->ctl_tables);
 
@@ -2124,10 +2116,8 @@ static struct ctl_table_header *__register_sysctl_dir(
 	int nr_dirs = ctl_path_items(path);
 	int dirs_created = 0;
 
-#ifdef CONFIG_SYSCTL_SYSCALL_CHECK
 	if (sysctl_check_path(path, nr_dirs))
 		return NULL;
-#endif
 
 	dir = sysctl_mkdirs(&root_table_header, group, path,
 			    nr_dirs, &dirs_created);
