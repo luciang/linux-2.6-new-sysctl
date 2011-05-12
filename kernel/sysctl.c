@@ -1850,7 +1850,7 @@ static void try_attach(struct ctl_table_header *p, struct ctl_table_header *q)
  * This routine returns %NULL on a failure to register, and a pointer
  * to the table header on success.
  */
-struct ctl_table_header *__register_sysctl_paths(
+static struct ctl_table_header *__register_sysctl_paths_impl(
 	struct ctl_table_root *root,
 	struct nsproxy *namespaces,
 	const struct ctl_path *path, struct ctl_table *table)
@@ -1926,6 +1926,13 @@ struct ctl_table_header *__register_sysctl_paths(
 	return header;
 }
 
+struct ctl_table_header *__register_sysctl_paths(
+	struct ctl_table_root *root, struct nsproxy *namespaces,
+	const struct ctl_path *_path, struct ctl_table *table)
+{
+	return __register_sysctl_paths_impl(root, namespaces, path, table);
+}
+
 /**
  * register_sysctl_table_path - register a sysctl table hierarchy
  * @path: The path to the directory the sysctl table is in.
@@ -1966,7 +1973,7 @@ struct ctl_table_header *register_sysctl_table(struct ctl_table *table)
  * Unregisters the sysctl table and all children. proc entries may not
  * actually be removed until they are no longer used by anyone.
  */
-void unregister_sysctl_table(struct ctl_table_header * header)
+static void unregister_sysctl_table_impl(struct ctl_table_header * header)
 {
 	might_sleep();
 
@@ -1982,6 +1989,11 @@ void unregister_sysctl_table(struct ctl_table_header * header)
 	if (!--header->count)
 		kfree_rcu(header, rcu);
 	spin_unlock(&sysctl_lock);
+}
+
+void unregister_sysctl_table(struct ctl_table_header *h)
+{
+	return unregister_sysctl_table_impl(h);
 }
 
 int sysctl_is_seen(struct ctl_table_header *p)
