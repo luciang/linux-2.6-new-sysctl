@@ -1926,12 +1926,164 @@ static struct ctl_table_header *__register_sysctl_paths_impl(
 	return header;
 }
 
+
+static int count_subheaders(struct ctl_table *table)
+{
+	int has_files = 0;
+	int nr_subheaders = 0;
+	struct ctl_table *t;
+
+	/* special case: empty directory */
+	if (!table->procname)
+		return 1;
+
+	for (t = table; t->procname; t++) {
+		if (t->child)
+			nr_subheaders += count_subheaders(t->child);
+		else
+			has_files = 1;
+	}
+	return nr_subheaders + has_files;
+}
+
+
+static void unregister_sysctl_table_impl(struct ctl_table_header * header);
+
+static int
+register_headers_as_leafs(struct ctl_path *path, int path_depth,
+			  struct ctl_table_header *wrap_h,
+			  struct ctl_table_root *root,
+			  struct nsproxy *namespaces,
+			  struct ctl_table *table)
+{
+	int i;
+	int nr_files = 0;
+	int nr_dirs = 0;
+	struct ctl_table *t;
+	struct ctl_table *files;
+	struct ctl_table_header *h;
+
+
+	for (t = table; t->procname; t++)
+		if (t->child)
+			nr_dirs++;
+		else
+			nr_files++;
+
+	/* only register a file table for this directory if either:
+	 * a) there are files in this directory
+	 *    => register a table of files
+	 * b) there are no files and no child sub-directories
+	 *    => register an empty directory */
+	if ((nr_files != 0) || ((nr_files == 0) && (nr_dirs == 0))) {
+		/* registration requires an empty entry at the end; thus `+1` */
+		files = kmalloc(sizeof(*files) * (nr_files + 1), GFP_KERNEL);
+		if (files == NULL)
+			goto err_alloc_file_table;
+
+		if (nr_files != 0) {
+			i = 0;
+			for (t = table; t->procname; t++) {
+				if (!t->child) {
+					files[i] = *t;
+					i++;
+				}
+			}
+		}
+		/* zero-out the sentinel (last element of the array) */
+		memset(&files[nr_files], 0, sizeof(struct ctl_table));
+
+		path[path_depth].procname = NULL;
+		h = __register_sysctl_paths_impl(root, namespaces, path, files);
+		if (h == NULL)
+			goto err_register_files;
+
+		wrap_h->subheaders[wrap_h->nr_subheaders] = h;
+		wrap_h->nr_subheaders++;
+	}
+
+	for (t = table; t->procname; t++) {
+		int err;
+		if (!t->child)
+			continue;
+		path[path_depth].procname = t->procname;
+		path[path_depth + 1].procname = NULL;
+		err = register_headers_as_leafs(path, path_depth + 1, wrap_h,
+						root, namespaces, t->child);
+		if (err) {
+			/* parent will unregister all already
+			 * registered subheaders */
+			return err;
+		}
+	}
+	return 0;
+
+err_register_files:
+	kfree(files);
+err_alloc_file_table:
+	return 1;
+}
+
+
+/* We're trying to move away from using ctl_tables to encode
+ * directories. This function splits the registration of a complex
+ * ctl_table array which may have directories (.child != NULL) into a
+ * series of simpler registrations that only register tables of files.
+ *
+ * To maintain full compatibility with users of this function, we're
+ * returning a valid `struct ctl_table_header`, but extended to hold
+ * an array of sub-`struct ctl_table_header`s (nr_subheaders and subheaders).
+ *
+ * No attempt was made to optimise this function. This hack is only
+ * useful until all in-kernel users that register sysctl tables get
+ * rid of the .child member of ctl_table and manually register arrays
+ * of ctl_table files themselves. */
 struct ctl_table_header *__register_sysctl_paths(
 	struct ctl_table_root *root, struct nsproxy *namespaces,
 	const struct ctl_path *_path, struct ctl_table *table)
 {
-	return __register_sysctl_paths_impl(root, namespaces, path, table);
+	int path_depth, i;
+	int nr_subheaders = count_subheaders(table);
+	struct ctl_path path[CTL_MAXNAME];
+	struct ctl_table_header *wrap_h;
+
+	for (i = 0; _path[i].procname; i++)
+		path[i].procname = _path[i].procname;
+	path_depth = i;
+
+	wrap_h = kmalloc(sizeof(*wrap_h), GFP_KERNEL);
+	if (wrap_h == NULL)
+		goto err_alloc_header;
+
+	wrap_h->ctl_table_arg = table;
+	wrap_h->nr_subheaders = 0;
+	wrap_h->subheaders = kmalloc(sizeof(struct ctl_table_header*) *
+				     nr_subheaders, GFP_KERNEL);
+	if (wrap_h->subheaders == NULL)
+		goto err_alloc_subheaders;
+
+	if (register_headers_as_leafs(path, path_depth, wrap_h,
+				      root, namespaces, table))
+		goto err_register_leafs;
+
+	return wrap_h;
+
+err_register_leafs:
+	for (i = wrap_h->nr_subheaders - 1; i >= 0; i--) {
+		struct ctl_table_header *subh = wrap_h->subheaders[i];
+		struct ctl_table *t = subh->ctl_table_arg;
+		unregister_sysctl_table_impl(subh);
+		kfree(t);
+	}
+	kfree(wrap_h->subheaders);
+
+err_alloc_subheaders:
+	kfree(wrap_h);
+err_alloc_header:
+
+	return NULL;
 }
+
 
 /**
  * register_sysctl_table_path - register a sysctl table hierarchy
@@ -1993,7 +2145,20 @@ static void unregister_sysctl_table_impl(struct ctl_table_header * header)
 
 void unregister_sysctl_table(struct ctl_table_header *h)
 {
-	return unregister_sysctl_table_impl(h);
+	int i;
+
+	if (h == NULL)
+		return;
+
+	for (i = h->nr_subheaders - 1; i >= 0; i--) {
+		struct ctl_table_header *subh = h->subheaders[i];
+		struct ctl_table *t = subh->ctl_table_arg;
+		unregister_sysctl_table_impl(subh);
+		kfree(t);
+	}
+
+	kfree(h->subheaders);
+	kfree(h);
 }
 
 int sysctl_is_seen(struct ctl_table_header *p)

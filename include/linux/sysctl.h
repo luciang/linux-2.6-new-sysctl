@@ -1076,6 +1076,13 @@ struct ctl_table_header
 	struct ctl_table *attached_by;
 	struct ctl_table *attached_to;
 	struct ctl_table_header *parent;
+
+	/* These fields are only useful until all ctl_table structures
+	 * in the kernel get rid of their .child member.
+	 * At registration, we break down all complex ctl_table trees
+	 * into simple {path, file-list} sub-headers. */
+	int nr_subheaders;
+	struct ctl_table_header **subheaders;
 };
 
 /* struct ctl_path describes where in the hierarchy a table is added */
