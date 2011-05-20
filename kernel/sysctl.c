@@ -205,8 +205,8 @@ static struct ctl_table_group root_table_group = {
 };
 
 static struct ctl_table_header root_table_header = {
-	{{.ctl_header_refs = 1,
-	  .ctl_entry	= LIST_HEAD_INIT(root_table_header.ctl_entry),}},
+	.ctl_header_refs = 1,
+	.ctl_entry	= LIST_HEAD_INIT(root_table_header.ctl_entry),
 	.ctl_tables	= LIST_HEAD_INIT(root_table_header.ctl_tables),
 	.ctl_subdirs	= LIST_HEAD_INIT(root_table_header.ctl_subdirs),
 	.ctl_group	= &root_table_group,

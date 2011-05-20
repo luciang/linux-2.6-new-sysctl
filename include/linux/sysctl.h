@@ -1074,44 +1074,51 @@ struct ctl_table_group {
 /* struct ctl_table_header is used to maintain dynamic lists of
    struct ctl_table trees. */
 struct ctl_table_header {
+	/* a header is used either as a wraper for a ctl_table array
+	 * or as directory entry. */
 	union {
-		struct {
-			/* a header is used either as a wraper for a
-			 * ctl_table array or as directory entry. */
-			union {
-				struct ctl_table *ctl_table_arg;
-				const char *ctl_dirname;
-			};
-			struct list_head ctl_entry;
-			/* references to this header from contexts that
-			 * can access fields of this header */
-			int ctl_use_refs;
-			/* references to this header from procfs inodes.
-			 * procfs embeds a pointer to the header in proc_inode */
-			int ctl_procfs_refs;
-			/* counts references to this header from other
-			 * headers (through ->parent) plus the reference
-			 * returned by __register_sysctl_paths */
-			int ctl_header_refs;
-			/* how many dirs were created when this header was
-			 * registered. Rule: the header which created a directory
-			 * should be the one that deletes it. This counter is
-			 * used to signal violations of this rule. The counter's
-			 * max value is CTL_MAXNAME (currently=10) so we use
-			 * only 4 bits of the 8 available. */
-			u8 ctl_owned_dirs_refs;
-		};
-		struct rcu_head rcu;
+		struct ctl_table *ctl_table_arg;
+		const char *ctl_dirname;
 	};
 	struct completion *unregistering;
 	struct ctl_table_group *ctl_group;
+	struct ctl_table_header *parent;
 
+
+	struct list_head ctl_entry;
 	/* Lists of other ctl_table_headers that represent either
 	 * subdirectories or ctl_tables of files. Add/remove and walk
 	 * this list holding the header's read/write lock. */
 	struct list_head ctl_tables;
 	struct list_head ctl_subdirs;
-	struct ctl_table_header *parent;
+
+
+	/* references to this header from contexts that can access
+	 * fields of this header */
+	int ctl_use_refs;
+	/* counts references to this header from other headers
+	 * (through ->parent) plus the reference returned by
+	 * __register_sysctl_paths */
+	int ctl_header_refs;
+	/* references to this header from procfs inodes.  procfs
+	 * embeds a pointer to the header in proc_inode.  If there's
+	 * at max one inode created per file then the max value of
+	 * this is the number of files in the ctl_table array, or 1
+	 * for directories. */
+	int ctl_procfs_refs;
+	/* how many dirs were created when this header was
+	 * registered. Rule: the header which created a directory
+	 * should be the one that deletes it. This counter is used to
+	 * signal violations of this rule. The counter's max value is
+	 * CTL_MAXNAME (currently=10) so we use only 4 bits of the 8
+	 * available. */
+	u8 ctl_owned_dirs_refs;
+
+	/* TODO: see exactly which members of this structure can be
+	 * union-ized with rcu (which members may not be accessed on
+	 * the read-side after scheduling the header for deletion). */
+	struct rcu_head rcu;
+
 
 	/* These fields are only useful until all ctl_table structures
 	 * in the kernel get rid of their .child member.
