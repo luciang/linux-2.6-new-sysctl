@@ -72,16 +72,18 @@ static void printk_sysctl_dir(struct ctl_table_header *dir)
 	const char *names[CTL_MAXNAME];
 	int i = 0;
 
-	for (; dir->parent; dir = dir->parent)
+	for (; dir->parent; dir = dir->parent) {
 		/* ctl_dirname can be NULL: netns-correspondent
 		 * directories do not have a ctl_dirname. Their only
 		 * pourpose is to hold the list of
 		 * subdirs/subtables. They hold netns-specific
 		 * information for the parent directory. */
-		if (dir->ctl_dirname) {
-			names[i] = dir->ctl_dirname;
-			i++;
-		}
+		if (dir->ctl_type == CTL_TYPE_NETNS_DIR)
+			continue;
+
+		names[i] = dir->ctl_dirname;
+		i++;
+	}
 
 	/* Print the names in the normal path order, not reversed */
 	for(i--; i >= 0; i--)
