@@ -1071,6 +1071,12 @@ struct ctl_table_group {
 	 * netns-specific correspondents of some sysctl directories */
 };
 
+
+#define CTL_TYPE_FILE_WRAPPER 1
+#define CTL_TYPE_DIR          2
+#define CTL_TYPE_NETNS_DIR    3
+
+
 /* struct ctl_table_header is used to maintain dynamic lists of
    struct ctl_table trees. */
 struct ctl_table_header {
@@ -1113,6 +1119,8 @@ struct ctl_table_header {
 	 * CTL_MAXNAME (currently=10) so we use only 4 bits of the 8
 	 * available. */
 	u8 ctl_owned_dirs_refs;
+	/* is this a file-wrapper, dir, netns-specific dir? */
+	u8 ctl_type;
 
 	/* TODO: see exactly which members of this structure can be
 	 * union-ized with rcu (which members may not be accessed on

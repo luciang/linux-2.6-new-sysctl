@@ -206,6 +206,7 @@ static struct ctl_table_group root_table_group = {
 
 static struct ctl_table_header root_table_header = {
 	.ctl_header_refs = 1,
+	.ctl_type	= CTL_TYPE_DIR,
 	.ctl_entry	= LIST_HEAD_INIT(root_table_header.ctl_entry),
 	.ctl_tables	= LIST_HEAD_INIT(root_table_header.ctl_tables),
 	.ctl_subdirs	= LIST_HEAD_INIT(root_table_header.ctl_subdirs),
@@ -1795,7 +1796,8 @@ static void sysctl_header_ctor(void *data)
 	INIT_LIST_HEAD(&h->ctl_tables);
 }
 
-static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *group)
+static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *group,
+						    int type)
 {
 	struct ctl_table_header *h;
 
@@ -1809,6 +1811,7 @@ static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *grou
 	h->ctl_table_arg = NULL;
 	h->unregistering = NULL;
 	h->ctl_group = group;
+	h->ctl_type = type;
 
 	return h;
 }
@@ -1916,7 +1919,7 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 	 * their parent directories. Stuff that is not used will be
 	 * freed at the end. */
 	for (i = 0; i < nr_dirs; i++) {
-		dirs[i] = alloc_sysctl_header(group);
+		dirs[i] = alloc_sysctl_header(group, CTL_TYPE_DIR);
 		if (!dirs[i])
 			goto err_alloc_dir;
 		dirs[i]->ctl_dirname = path[i].procname;
@@ -1928,7 +1931,7 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 		 * this later while being under a lock. We
 		 * pre-allocate it just in case it might be needed and
 		 * free it at the end only if it wasn't used. */
-		__netns_corresp = alloc_sysctl_header(group);
+		__netns_corresp = alloc_sysctl_header(group, CTL_TYPE_NETNS_DIR);
 		if (!__netns_corresp)
 			goto err_alloc_coresp;
 	}
@@ -2063,7 +2066,7 @@ struct ctl_table_header *__register_sysctl_paths_impl(struct ctl_table_group *gr
 	if (sysctl_check_table(path, nr_dirs, table))
 		return NULL;
 
-	header = alloc_sysctl_header(group);
+	header = alloc_sysctl_header(group, CTL_TYPE_FILE_WRAPPER);
 	if (!header)
 		return NULL;
 
@@ -2329,7 +2332,7 @@ static void unregister_sysctl_table_impl(struct ctl_table_header * header)
 		if (dirs_to_delete)
 			dirs_to_delete --;
 
-		if (!header->ctl_dirname) {
+		if (header->ctl_type == CTL_TYPE_NETNS_DIR) {
 			/* the header is a netns correspondent of it's
 			 * parent. It is a member of it's netns
 			 * specific ctl_table_group list. For not that
