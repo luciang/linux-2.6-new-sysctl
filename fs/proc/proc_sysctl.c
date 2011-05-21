@@ -66,6 +66,30 @@ static struct ctl_table *find_in_table(struct ctl_table *p, const char *name)
 	return NULL;
 }
 
+
+static struct ctl_table_header *find_subdir(struct ctl_table_header *dir,
+					    const char *name)
+{
+	struct rb_node *n = dir->ctl_rb_subdirs.rb_node;
+
+	while (n)
+	{
+		struct ctl_table_header *h;
+		int ret;
+
+		h = rb_entry(n, struct ctl_table_header, ctl_rb_node);
+
+		ret = strcmp(name, h->ctl_dirname);
+		if (ret < 0)
+			n = n->rb_left;
+		else if (ret > 0)
+			n = n->rb_right;
+		else
+			return h;
+	}
+	return NULL;
+}
+
 static struct dentry *proc_sys_lookup(struct inode *dir, struct dentry *dentry,
 					struct nameidata *nd)
 {
@@ -84,15 +108,10 @@ retry:
 	sysctl_read_lock_head(head);
 
 	/* first check whether a subdirectory has the searched-for name */
-	list_for_each_entry(h, &head->ctl_subdirs, ctl_entry) {
-		if (IS_ERR(sysctl_use_header(h)))
-			continue;
-
-		if (strcmp(name->name, h->ctl_dirname) == 0) {
-			found_head = h;
-			goto search_finished;
-		}
-		sysctl_unuse_header(h);
+	h = find_subdir(head, name);
+	if (h && !IS_ERR(sysctl_use_header(h))) {
+		found_head = h;
+		goto search_finished;
 	}
 
 	/* no subdir with that name, look for the file in the ctl_tables */
@@ -265,16 +284,19 @@ static int scan(struct ctl_table_header *head,
 		unsigned long *pos, struct file *file,
 		void *dirent, filldir_t filldir)
 {
+	struct rb_node *node;
 	struct ctl_table_header *h;
 	int res = 0;
 
 	sysctl_read_lock_head(head);
 
-	list_for_each_entry(h, &head->ctl_subdirs, ctl_entry) {
+	for (node = rb_first(&head->ctl_rb_subdirs); node; node = rb_next(node)) {
 		if (*pos < file->f_pos) {
 			(*pos)++;
 			continue;
 		}
+
+		h = rb_entry(node, struct ctl_table_header, ctl_rb_node);
 
 		if (IS_ERR(sysctl_use_header(h)))
 			continue;

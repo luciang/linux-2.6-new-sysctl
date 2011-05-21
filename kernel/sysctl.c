@@ -207,9 +207,8 @@ static struct ctl_table_group root_table_group = {
 static struct ctl_table_header root_table_header = {
 	.ctl_header_refs = 1,
 	.ctl_type	= CTL_TYPE_DIR,
-	.ctl_entry	= LIST_HEAD_INIT(root_table_header.ctl_entry),
 	.ctl_tables	= LIST_HEAD_INIT(root_table_header.ctl_tables),
-	.ctl_subdirs	= LIST_HEAD_INIT(root_table_header.ctl_subdirs),
+	.ctl_rb_subdirs	= RB_ROOT,
 	.ctl_group	= &root_table_group,
 };
 
@@ -1790,10 +1789,6 @@ static void sysctl_header_ctor(void *data)
 	h->ctl_use_refs = 0;
 	h->ctl_procfs_refs = 0;
 	h->ctl_header_refs = 0;
-
-	INIT_LIST_HEAD(&h->ctl_entry);
-	INIT_LIST_HEAD(&h->ctl_subdirs);
-	INIT_LIST_HEAD(&h->ctl_tables);
 }
 
 static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *group,
@@ -1805,36 +1800,90 @@ static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *grou
 	if (!h)
 		return NULL;
 
-	/* - all _refs members are zero before freeing
-	 * - all list_head members point to themselves (empty lists) */
+	/* - all _refs members are zero before freeing */
 
 	h->ctl_table_arg = NULL;
 	h->unregistering = NULL;
 	h->ctl_group = group;
 	h->ctl_type = type;
 
+	switch (type)
+	{
+	case CTL_TYPE_DIR:
+		/* regular dirs have a rbtree for subdirs, a list of
+		 * files and are members of their parent's subdirs rbtree */
+		INIT_LIST_HEAD(&h->ctl_tables);
+		h->ctl_rb_subdirs = RB_ROOT;
+		RB_CLEAR_NODE (&h->ctl_rb_node);
+		break;
+	case CTL_TYPE_NETNS_DIR:
+		/* netns correspondents have subdirs/files, but are members
+		 * of the netns specific list of correspondents */
+		INIT_LIST_HEAD(&h->ctl_tables);
+		h->ctl_rb_subdirs = RB_ROOT;
+		INIT_LIST_HEAD(&h->ctl_entry);
+		break;
+	case CTL_TYPE_FILE_WRAPPER:
+		/* file wrapping headers are members of their parent's
+		 * list of file tables */
+		INIT_LIST_HEAD(&h->ctl_entry);
+		break;
+	}
+
 	return h;
 }
 
-/* Increment the references to an existing subdir of @parent with the name
- * @name and return that subdir. If no such subdir exists, return NULL.
- * Called under the write lock protecting parent's ctl_subdirs. */
-static struct ctl_table_header *mkdir_existing_dir(struct ctl_table_header *parent,
-						   const char *name)
+
+/* Called under the write lock protecting dirs's ctl_rb_subdirs. */
+static struct ctl_table_header *search_insert_subdir(struct ctl_table_header *dir,
+						     struct ctl_table_header *child,
+						     int just_search)
 {
-	struct ctl_table_header *h;
-	list_for_each_entry(h, &parent->ctl_subdirs, ctl_entry) {
-		spin_lock(&sysctl_lock);
-		if (likely(!h->unregistering)) {
-			if (strcmp(name, h->ctl_dirname) == 0) {
+	struct rb_root *root = &dir->ctl_rb_subdirs;
+	struct rb_node **new = &root->rb_node;
+	struct rb_node *parent = NULL;
+
+	while (*new) {
+		struct ctl_table_header *h;
+		int ret;
+
+		parent = *new;
+		h = rb_entry(*new, struct ctl_table_header, ctl_rb_node);
+
+		ret = strcmp(child->ctl_dirname, h->ctl_dirname);
+		if (ret < 0)
+			new = &(*new)->rb_left;
+		else if (ret > 0)
+			new = &(*new)->rb_right;
+		else {
+			spin_lock(&sysctl_lock);
+			if (likely(!h->unregistering)) {
 				h->ctl_header_refs ++;
 				spin_unlock(&sysctl_lock);
 				return h;
 			}
+			spin_unlock(&sysctl_lock);
+
+			if (just_search)
+				return NULL;
+
+			rb_replace_node(*new, &child->ctl_rb_node, root);
+			RB_CLEAR_NODE(*new);
+			goto ret_child;
 		}
-		spin_unlock(&sysctl_lock);
 	}
-	return NULL;
+
+	if (just_search)
+		return NULL;
+
+	/* Add new node and rebalance tree. */
+	rb_link_node(&child->ctl_rb_node, parent, new);
+	rb_insert_color(&child->ctl_rb_node, root);
+
+ret_child:
+	header_refs_inc(child);
+	child->parent = dir;
+	return child;
 }
 
 /* Some sysctl paths are netns-specific. The last directory that in
@@ -1870,17 +1919,6 @@ static struct ctl_table_header *mkdir_netns_corresp(
 	header_refs_inc(ret);
 	sysctl_unuse_header(ret);
 	return ret;
-}
-
-/* Add @dir as a subdir of @parent.
- * Called under the write lock protecting parent's ctl_subdirs. */
-static struct ctl_table_header *mkdir_new_dir(struct ctl_table_header *parent,
-					      struct ctl_table_header *dir)
-{
-	dir->parent = parent;
-	header_refs_inc(dir);
-	list_add_tail(&dir->ctl_entry, &parent->ctl_subdirs);
-	return dir;
 }
 
 
@@ -1941,37 +1979,36 @@ static struct ctl_table_header *sysctl_mkdirs(struct ctl_table_header *parent,
 	for (i = 0; i < nr_dirs; i++) {
 		struct ctl_table_header *h;
 
-	retry:
 		sysctl_write_lock_head(parent);
 
-		h = mkdir_existing_dir(parent, dirs[i]->ctl_dirname);
-		if (h != NULL) {
+		h = search_insert_subdir(parent, dirs[i], create_first_netns_corresp);
+
+		if (unlikely(h == NULL)) {
+			/* We only get a NULL if we searched without inserting
+			 * and did not find a dir with the name of dirs[i].
+			 * We only search (no insert) if dirs[i] should be a
+			 * netns specific dir. */
 			sysctl_write_unlock_head(parent);
-			parent = h;
-			continue;
+
+			create_first_netns_corresp = 0;
+			parent = mkdir_netns_corresp(parent, group, &__netns_corresp);
+
+			sysctl_write_lock_head(parent);
+			h = search_insert_subdir(parent, dirs[i], 0);
 		}
 
-		if (likely(!create_first_netns_corresp)) {
-			h = mkdir_new_dir(parent, dirs[i]);
-			sysctl_write_unlock_head(parent);
-			parent = h;
+		sysctl_write_unlock_head(parent);
+		parent = h;
+
+		if (h == dirs[i]) {
+			/* we've just added a new directory */
 			dirs[i] = NULL; /* I'm used, don't free me */
-			if (sysctl_check_netns_correspondents(parent, group)) {
+			if (sysctl_check_netns_correspondents(h, group)) {
 				unregister_sysctl_table_impl(h);
 				goto err_check_netns_correspondents;
 			}
 			(*p_dirs_created)++;
-			continue;
 		}
-
-		sysctl_write_unlock_head(parent);
-
-		create_first_netns_corresp = 0;
-		parent = mkdir_netns_corresp(parent, group, &__netns_corresp);
-		/* We still have to add the new subdirectory, but
-		 * instead of adding it into the common parent, add it
-		 * to it's netns correspondent. */
-		goto retry;
 	}
 
 	if (create_first_netns_corresp)
@@ -2332,7 +2369,8 @@ static void unregister_sysctl_table_impl(struct ctl_table_header * header)
 		if (dirs_to_delete)
 			dirs_to_delete --;
 
-		if (header->ctl_type == CTL_TYPE_NETNS_DIR) {
+		switch (header->ctl_type) {
+		case CTL_TYPE_NETNS_DIR:
 			/* the header is a netns correspondent of it's
 			 * parent. It is a member of it's netns
 			 * specific ctl_table_group list. For not that
@@ -2340,13 +2378,23 @@ static void unregister_sysctl_table_impl(struct ctl_table_header * header)
 			spin_lock(&sysctl_lock);
 			list_del_init(&header->ctl_entry);
 			spin_unlock(&sysctl_lock);
-		} else {
+			break;
+		case CTL_TYPE_FILE_WRAPPER:
 			/* ctl_entry is a member of the parent's
-			 * ctl_tables/subdirs lists which are
-			 * protected by the parent's write lock. */
+			 * ctl_tables lists which is protected by the
+			 * parent's write lock. */
 			sysctl_write_lock_head(parent);
 			list_del_init(&header->ctl_entry);
 			sysctl_write_unlock_head(parent);
+			break;
+		case CTL_TYPE_DIR:
+			/* This is a member of the parent subdir rbtree which
+			 * is protected by the parent's write lock. */
+			sysctl_write_lock_head(parent);
+			if (likely(!RB_EMPTY_NODE(&header->ctl_rb_node)))
+				rb_erase(&header->ctl_rb_node, &parent->ctl_rb_subdirs);
+			sysctl_write_unlock_head(parent);
+			break;
 		}
 
 		spin_lock(&sysctl_lock);

@@ -24,6 +24,7 @@
 
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/rbtree.h>
 #include <linux/compiler.h>
 
 struct completion;
@@ -1092,11 +1093,9 @@ struct ctl_table_header {
 
 
 	struct list_head ctl_entry;
-	/* Lists of other ctl_table_headers that represent either
-	 * subdirectories or ctl_tables of files. Add/remove and walk
-	 * this list holding the header's read/write lock. */
 	struct list_head ctl_tables;
-	struct list_head ctl_subdirs;
+	struct rb_root ctl_rb_subdirs;
+	struct rb_node ctl_rb_node;
 
 
 	/* references to this header from contexts that can access

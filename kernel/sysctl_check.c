@@ -126,8 +126,11 @@ int sysctl_check_duplicates(struct ctl_table_header *header)
 	struct ctl_table *table = header->ctl_table_arg;
 	struct ctl_table_header *dir = header->parent;
 	struct ctl_table_header *h;
+	struct rb_node *node;
 
-	list_for_each_entry(h, &dir->ctl_subdirs, ctl_entry) {
+	for (node = rb_first(&dir->ctl_rb_subdirs); node; node = rb_next(node)) {
+		h = rb_entry(node, struct ctl_table_header, ctl_rb_node);
+
 		if (IS_ERR(sysctl_use_header(h)))
 			continue;
 
@@ -177,6 +180,7 @@ int sysctl_check_duplicates(struct ctl_table_header *header)
 int sysctl_check_netns_correspondents(struct ctl_table_header *header,
 				      struct ctl_table_group *group)
 {
+	struct rb_node *node;
 	struct ctl_table_header *netns_corresp, *h;
 	int found = 0;
 	/* we're only checking registration of non-netns paths added,
@@ -191,7 +195,10 @@ int sysctl_check_netns_correspondents(struct ctl_table_header *header,
 	/* see if the netns_correspondent has a subdir
 	 * with the same as this non-netns specific header */
 	sysctl_read_lock_head(netns_corresp);
-	list_for_each_entry(h, &netns_corresp->ctl_subdirs, ctl_entry) {
+
+	for (node = rb_first(&netns_corresp->ctl_rb_subdirs); node; node = rb_next(node)) {
+		h = rb_entry(node, struct ctl_table_header, ctl_rb_node);
+
 		if (IS_ERR(sysctl_use_header(h)))
 			continue;
 		if (strcmp(header->ctl_dirname, h->ctl_dirname) == 0) {
