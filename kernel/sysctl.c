@@ -207,9 +207,9 @@ static struct ctl_table_group root_table_group = {
 static struct ctl_table_header root_table_header = {
 	.ctl_header_refs = 1,
 	.ctl_type	= CTL_TYPE_DIR,
-	.ctl_tables	= LIST_HEAD_INIT(root_table_header.ctl_tables),
-	.ctl_rb_subdirs	= RB_ROOT,
 	.ctl_group	= &root_table_group,
+	{{.ctl_tables	= LIST_HEAD_INIT(root_table_header.ctl_tables),
+	  .ctl_rb_subdirs= RB_ROOT}},
 };
 
 #ifdef HAVE_ARCH_PICK_MMAP_LAYOUT

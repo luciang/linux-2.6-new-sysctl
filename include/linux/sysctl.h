@@ -1088,14 +1088,20 @@ struct ctl_table_header {
 		const char *ctl_dirname;
 	};
 	struct completion *unregistering;
-	struct ctl_table_group *ctl_group;
 	struct ctl_table_header *parent;
+	struct ctl_table_group *ctl_group;
 
+	union {
+		/* used in CTL_TYPE_NETNS_DIR/CTL_TYPE_DIR */
+		struct {
+			struct list_head ctl_tables;
+			struct rb_root ctl_rb_subdirs;
+			struct rb_node ctl_rb_node;
+		};
 
-	struct list_head ctl_entry;
-	struct list_head ctl_tables;
-	struct rb_root ctl_rb_subdirs;
-	struct rb_node ctl_rb_node;
+		/* only used in CTL_TYPE_FILE_WRAPPER */
+		struct list_head ctl_entry;
+	};
 
 
 	/* references to this header from contexts that can access
