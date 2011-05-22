@@ -1044,7 +1044,7 @@ struct ctl_table_group {
 	int is_initialized:1;
 	/* does this group use the @corresp_list? */
 	int has_netns_corresp:1;
-	struct list_head corresp_list;
+	struct rb_root corresp_root;
 	const struct ctl_table_group_ops *ctl_ops;
 	/* A list of ctl_table_header elements that represent the
 	 * netns-specific correspondents of some sysctl directories */
