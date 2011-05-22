@@ -1594,46 +1594,12 @@ void sysctl_proc_inode_put(struct ctl_table_header *head)
 	spin_unlock(&sysctl_lock);
 }
 
-/*
- * Find the netns correspondent of @head. If it is not found and @dflt
- * is != NULL, set dflt to be the netns correspondent of @head.
- */
-static struct ctl_table_header *sysctl_use_netns_corresp_dflt(
-	struct ctl_table_group *group,
-	struct ctl_table_header *head,
-	struct ctl_table_header *dflt)
+
+struct ctl_table_header *sysctl_use_netns_corresp(struct ctl_table_header *head)
 {
-	struct ctl_table_header *h, *ret = NULL;
-
-	spin_lock(&sysctl_lock);
-	list_for_each_entry(h, &group->corresp_list, ctl_entry) {
-		if (h->parent != head)
-			continue;
-		if (!__sysctl_use_header(h))
-			continue;
-		ret = h;
-		goto out;
-	}
-
-	if (!dflt)
-		goto out;
-
-	/* will not fail because dflt is a brand-new header that no
-	 * one has seen yet, so no one has started to unregister it */
-	dflt = __sysctl_use_header(dflt);
-	dflt->ctl_dirname = NULL; /* this marks the header as a netns-corresp */
-	dflt->parent = head;
-	list_add_tail(&dflt->ctl_entry, &group->corresp_list);
-	ret = dflt;
-
-out:
-	spin_unlock(&sysctl_lock);
-	return ret;
-}
-
-struct ctl_table_header *sysctl_use_netns_corresp(struct ctl_table_header *h)
-{
+	struct ctl_table_header *ret = NULL;
 	struct ctl_table_group *g = &current->nsproxy->net_ns->netns_ctl_group;
+	struct rb_node *n;
 
 	/* this function may be called to check whether the
 	 * netns-specific vs. non-netns-specific registration order is
@@ -1642,9 +1608,29 @@ struct ctl_table_header *sysctl_use_netns_corresp(struct ctl_table_header *h)
 	if (!g->is_initialized)
 		return NULL;
 
-	/* dflt == NULL means: if there's a netns corresp return it,
-	 *                     if there isn't, just return NULL */
-	return sysctl_use_netns_corresp_dflt(g, h, NULL);
+
+	spin_lock(&sysctl_lock);
+
+	n = g->corresp_root.rb_node;
+	while (n)
+	{
+		struct ctl_table_header *h;
+
+		h = rb_entry(n, struct ctl_table_header, ctl_rb_node);
+
+		if (h->parent < head)
+			n = n->rb_left;
+		else if (h->parent > head)
+			n = n->rb_right;
+		else {
+			ret = __sysctl_use_header(h);
+			goto out;
+		}
+	}
+
+out:
+	spin_unlock(&sysctl_lock);
+	return ret;
 }
 
 
@@ -1810,18 +1796,12 @@ static struct ctl_table_header *alloc_sysctl_header(struct ctl_table_group *grou
 	switch (type)
 	{
 	case CTL_TYPE_DIR:
-		/* regular dirs have a rbtree for subdirs, a list of
-		 * files and are members of their parent's subdirs rbtree */
+	case CTL_TYPE_NETNS_DIR:
+		/* dirs have a rbtree for subdirs, a list of files and
+		 * are members of their parent's subdirs rbtree */
 		INIT_LIST_HEAD(&h->ctl_tables);
 		h->ctl_rb_subdirs = RB_ROOT;
 		RB_CLEAR_NODE (&h->ctl_rb_node);
-		break;
-	case CTL_TYPE_NETNS_DIR:
-		/* netns correspondents have subdirs/files, but are members
-		 * of the netns specific list of correspondents */
-		INIT_LIST_HEAD(&h->ctl_tables);
-		h->ctl_rb_subdirs = RB_ROOT;
-		INIT_LIST_HEAD(&h->ctl_entry);
 		break;
 	case CTL_TYPE_FILE_WRAPPER:
 		/* file wrapping headers are members of their parent's
@@ -1902,22 +1882,73 @@ ret_child:
  *        netns path: /proc/sys/net/core/
  * We'll create an (unnamed) netns correspondent for 'core'.
  */
+
+/*
+ * Find the netns correspondent of @head. If it is not found and @dflt
+ * is != NULL, set dflt to be the netns correspondent of @head.
+ */
 static struct ctl_table_header *mkdir_netns_corresp(
-	struct ctl_table_header *parent,
+	struct ctl_table_header *head,
 	struct ctl_table_group *group,
 	struct ctl_table_header **__netns_corresp)
 {
-	struct ctl_table_header *ret;
+	struct rb_root *root = &group->corresp_root;
+	struct rb_node **new = &root->rb_node;
+	struct rb_node *parent = NULL;
+	struct ctl_table_header *dflt = *__netns_corresp;
+	struct ctl_table_header *ret = NULL;
 
-	ret = sysctl_use_netns_corresp_dflt(group, parent, *__netns_corresp);
+	spin_lock(&sysctl_lock);
+	while (*new) {
+		struct ctl_table_header *h;
 
-	/* *__netns_corresp is a pre-allocated header. If we used it
-            here, we have to tell the caller so it won't free it. */
-	if (*__netns_corresp == ret)
-		*__netns_corresp = NULL;
+		parent = *new;
+		/* the key in this rbtree is the regular directory to
+		 * which an entry (netns correspondent) directory
+		 * corresponds. A directory is the ->parent of it's
+		 * netns correspondent. */
+		h = rb_entry(*new, struct ctl_table_header, ctl_rb_node);
 
-	header_refs_inc(ret);
-	sysctl_unuse_header(ret);
+		if (h->parent < head)
+			new = &(*new)->rb_left;
+		else if (h->parent > head)
+			new = &(*new)->rb_right;
+		else {
+			if (likely(!h->unregistering)) {
+				h->ctl_header_refs ++;
+				ret = h;
+				goto out;
+			}
+
+			if (!dflt)
+				goto out;
+
+			/* h is unregistering, we'll just replace it */
+			rb_replace_node(*new, &dflt->ctl_rb_node, root);
+			RB_CLEAR_NODE(*new);
+			goto ret_dflt;
+		}
+	}
+
+	if (!dflt)
+		goto out;
+
+	/* Add new node and rebalance tree. */
+	rb_link_node(&dflt->ctl_rb_node, parent, new);
+	rb_insert_color(&dflt->ctl_rb_node, root);
+
+ret_dflt:
+	/* will not fail because dflt is a brand-new header that no
+	 * one has seen yet, so no one has started to unregister it */
+	dflt->ctl_dirname = NULL; /* this marks the header as a netns-corresp */
+	dflt->parent = head;
+	dflt->ctl_header_refs ++;
+	*__netns_corresp = NULL;
+
+	ret = dflt;
+
+out:
+	spin_unlock(&sysctl_lock);
 	return ret;
 }
 
@@ -2376,7 +2407,8 @@ static void unregister_sysctl_table_impl(struct ctl_table_header * header)
 			 * specific ctl_table_group list. For not that
 			 * list is protected by sysctl_lock. */
 			spin_lock(&sysctl_lock);
-			list_del_init(&header->ctl_entry);
+			if (likely(!RB_EMPTY_NODE(&header->ctl_rb_node)))
+				rb_erase(&header->ctl_rb_node, &header->ctl_group->corresp_root);
 			spin_unlock(&sysctl_lock);
 			break;
 		case CTL_TYPE_FILE_WRAPPER:
@@ -2454,7 +2486,7 @@ void sysctl_init_group(struct ctl_table_group *group,
 	group->ctl_ops = ops;
 	group->has_netns_corresp = has_netns_corresp;
 	if (has_netns_corresp)
-		INIT_LIST_HEAD(&group->corresp_list);
+		group->corresp_root = RB_ROOT;
 	group->is_initialized = 1;
 }
 

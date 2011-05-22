@@ -79,7 +79,7 @@ static int __net_init sysctl_net_init(struct net *net)
 
 static void __net_exit sysctl_net_exit(struct net *net)
 {
-	WARN_ON(!list_empty(&net->netns_ctl_group.corresp_list));
+	WARN_ON(!RB_EMPTY_ROOT(&net->netns_ctl_group.corresp_root));
 }
 
 static struct pernet_operations sysctl_pernet_ops = {
