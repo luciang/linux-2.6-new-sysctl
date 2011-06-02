@@ -24,7 +24,6 @@
 #include <linux/errno.h>
 #include <linux/compiler.h>
 #include <linux/workqueue.h>
-#include <linux/sysctl.h>
 
 #define KMOD_PATH_LEN 256
 
@@ -109,8 +108,6 @@ call_usermodehelper(char *path, char **argv, char **envp, enum umh_wait wait)
 	return call_usermodehelper_fns(path, argv, envp, wait,
 				       NULL, NULL, NULL);
 }
-
-extern struct ctl_table usermodehelper_table[];
 
 extern void usermodehelper_init(void);
 

@@ -36,6 +36,7 @@
 #include <linux/resource.h>
 #include <linux/notifier.h>
 #include <linux/suspend.h>
+#include <linux/sysctl.h>
 #include <asm/uaccess.h>
 
 #include <trace/events/module.h>
@@ -506,7 +507,7 @@ static int proc_cap_handler(struct ctl_table *table, int write,
 	return 0;
 }
 
-struct ctl_table usermodehelper_table[] = {
+static struct ctl_table usermodehelper_table[] = {
 	{
 		.procname	= "bset",
 		.data		= CAP_BSET,
@@ -524,8 +525,19 @@ struct ctl_table usermodehelper_table[] = {
 	{ }
 };
 
+static const struct ctl_path umh_path[] = {
+	{ .procname = "kernel" },
+	{ .procname = "usermodehelper" },
+	{ },
+};
+
+
 void __init usermodehelper_init(void)
 {
+	struct ctl_table_header *umh_header;
+	umh_header = register_sysctl_paths(umh_path, usermodehelper_table);
+	BUG_ON(!umh_header);
+
 	khelper_wq = create_singlethread_workqueue("khelper");
 	BUG_ON(!khelper_wq);
 }
